@@ -30,11 +30,11 @@ namespace CTRSystem.DB
 			if (creator.EnsureTableStructure(new SqlTable("Tiers",
 					new SqlColumn("ID", MySqlDbType.Int32) { AutoIncrement = true, Primary = true },
 					new SqlColumn("Name", MySqlDbType.VarChar) { Length = 12, Unique = true },
-					new SqlColumn("CreditsRequired", MySqlDbType.Int32),
+					new SqlColumn("CreditsRequired", MySqlDbType.Float),
 					new SqlColumn("ShortName", MySqlDbType.VarChar) { Length = 6 },
 					new SqlColumn("ChatColor", MySqlDbType.Text) { DefaultValue = null },
 					new SqlColumn("Permissions", MySqlDbType.Text),
-					new SqlColumn("ExperienceMultiplier", MySqlDbType.Float) { DefaultValue = "1" })))
+					new SqlColumn("ExperienceMultiplier", MySqlDbType.Float) { DefaultValue = "1.00" })))
 			{
 				TShock.Log.ConsoleInfo("CTRS: created table 'Tiers'");
 			}
@@ -57,7 +57,7 @@ namespace CTRSystem.DB
 							tier = new Tier(id)
 							{
 								Name = result.Get<string>("Name"),
-								CreditsRequired = result.Get<int>("CreditsRequired"),
+								CreditsRequired = result.Get<float>("CreditsRequired"),
 								ShortName = result.Get<string>("ShortName"),
 								ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor")),
 								Permissions = result.Get<string>("Permissions").Split(',').ToList(),
@@ -90,7 +90,7 @@ namespace CTRSystem.DB
 							tier = new Tier(result.Get<int>("ID"))
 							{
 								Name = result.Get<string>("Name"),
-								CreditsRequired = result.Get<int>("CreditsRequired"),
+								CreditsRequired = result.Get<float>("CreditsRequired"),
 								ShortName = result.Get<string>("ShortName"),
 								ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor")),
 								Permissions = result.Get<string>("Permissions").Split(',').ToList(),
@@ -106,7 +106,7 @@ namespace CTRSystem.DB
 			});
 		}
 
-		public Task<Tier> GetByCreditsAsync(int totalcredits)
+		public Task<Tier> GetByCreditsAsync(float totalcredits)
 		{
 			return Task.Run(() =>
 			{
@@ -118,7 +118,7 @@ namespace CTRSystem.DB
 						Tier tier = new Tier(result.Get<int>("ID"))
 						{
 							Name = result.Get<string>("Name"),
-							CreditsRequired = result.Get<int>("CreditsRequired"),
+							CreditsRequired = result.Get<float>("CreditsRequired"),
 							ShortName = result.Get<string>("ShortName"),
 							ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor")),
 							Permissions = result.Get<string>("Permissions").Split(',').ToList(),
@@ -156,6 +156,26 @@ namespace CTRSystem.DB
 				}
 				return list;
 			});
+		}
+
+		public async Task UpgradeTier(Contributor contributor)
+		{
+			if ((contributor.Notifications & Notifications.TierUpdate) == Notifications.TierUpdate)
+			{
+				ContributorUpdates updates = 0;
+				Tier tier = await GetByCreditsAsync(contributor.TotalCredits);
+				if (contributor.Tier != tier.ID)
+				{
+					contributor.Tier = tier.ID;
+					contributor.Notifications |= Notifications.NewTier;
+					updates |= ContributorUpdates.Tier;
+				}
+				contributor.Notifications ^= Notifications.TierUpdate;
+				updates |= ContributorUpdates.Notifications;
+
+				if (!await CTRS.Contributors.UpdateAsync(contributor, updates))
+					TShock.Log.ConsoleError("CTRS-DB: something went wrong while updating a contributor's notifications.");
+			}
 		}
 
 		/// <summary>

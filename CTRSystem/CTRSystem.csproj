@@ -30,6 +30,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="HttpServer">
+      <HintPath>References\HttpServer.dll</HintPath>
+    </Reference>
     <Reference Include="Mono.Data.Sqlite">
       <HintPath>References\Mono.Data.Sqlite.dll</HintPath>
     </Reference>
@@ -53,18 +56,27 @@
     <Reference Include="TShockAPI">
       <HintPath>References\TShockAPI.dll</HintPath>
     </Reference>
+    <Reference Include="Wolfje.Plugins.SEconomy">
+      <HintPath>References\Wolfje.Plugins.SEconomy.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Commands.cs" />
     <Compile Include="Configuration\ConfigFile.cs" />
     <Compile Include="Configuration\Texts.cs" />
+    <Compile Include="Configuration\XenforoConfig.cs" />
     <Compile Include="CTRS.cs" />
     <Compile Include="DB\Contributor.cs" />
     <Compile Include="DB\ContributorManager.cs" />
     <Compile Include="DB\Enums.cs" />
     <Compile Include="DB\Tier.cs" />
     <Compile Include="DB\TierManager.cs" />
+    <Compile Include="DB\XenforoManager.cs" />
+    <Compile Include="DB\XFUser.cs" />
+    <Compile Include="Extensions\DateTimeExtensions.cs" />
+    <Compile Include="Extensions\Int64Extensions.cs" />
     <Compile Include="Extensions\ListExtensions.cs" />
+    <Compile Include="Extensions\TSPlayerExtensions.cs" />
     <Compile Include="Permissions.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Tools.cs" />

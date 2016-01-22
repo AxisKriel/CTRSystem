@@ -14,6 +14,8 @@ using Terraria;
 using TerrariaApi.Server;
 using TShockAPI;
 using TShockAPI.Hooks;
+using Wolfje.Plugins.SEconomy;
+using Wolfje.Plugins.SEconomy.Journal;
 using Config = CTRSystem.Configuration.ConfigFile;
 using Texts = CTRSystem.Configuration.Texts;
 
@@ -59,6 +61,8 @@ namespace CTRSystem
 
 		public static TierManager Tiers { get; private set; }
 
+		public static XenforoManager XenforoUsers { get; private set; }
+
 		public static Version PublicVersion
 		{
 			get { return Assembly.GetExecutingAssembly().GetName().Version; }
@@ -70,11 +74,18 @@ namespace CTRSystem
 			{
 				//PlayerHooks.PlayerChat -= OnChat;
 				GeneralHooks.ReloadEvent -= OnReload;
+				PlayerHooks.PlayerLogout -= OnLogout;
 				PlayerHooks.PlayerPermission -= OnPlayerPermission;
 				ServerApi.Hooks.GameInitialize.Deregister(this, OnInitialize);
 				ServerApi.Hooks.GameUpdate.Deregister(this, UpdateTiers);
 				ServerApi.Hooks.GameUpdate.Deregister(this, UpdateNotifications);
 				ServerApi.Hooks.ServerChat.Deregister(this, OnChat);
+
+				if (SEconomyPlugin.Instance != null)
+				{
+					SEconomyPlugin.SEconomyLoaded -= SEconomyLoaded;
+					SEconomyPlugin.SEconomyUnloaded -= SEconomyUnloaded;
+				}
 			}
 		}
 
@@ -82,11 +93,21 @@ namespace CTRSystem
 		{
 			//PlayerHooks.PlayerChat += OnChat;
 			GeneralHooks.ReloadEvent += OnReload;
+			PlayerHooks.PlayerLogout += OnLogout;
 			PlayerHooks.PlayerPermission += OnPlayerPermission;
 			ServerApi.Hooks.GameInitialize.Register(this, OnInitialize);
 			ServerApi.Hooks.GameUpdate.Register(this, UpdateTiers);
 			ServerApi.Hooks.GameUpdate.Register(this, UpdateNotifications);
 			ServerApi.Hooks.ServerChat.Register(this, OnChat);
+
+			if (SEconomyPlugin.Instance != null)
+			{
+				SEconomyPlugin.SEconomyLoaded += SEconomyLoaded;
+				SEconomyPlugin.SEconomyUnloaded += SEconomyUnloaded;
+
+				// Initial hooking, as SEconomyLoaded has already been called
+				SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += SEconomyBankTransactionPending;
+			}
 		}
 
 		async void OnChat(ServerChatEventArgs e)
@@ -111,21 +132,15 @@ namespace CTRSystem
 				return;
 
 			// Player needs to be able to talk, not be muted, and must be logged in
-			if (!player.HasPermission(Permissions.canchat) || player.mute || !player.IsLoggedIn)
+			if (!player.HasPermission(TShockAPI.Permissions.canchat) || player.mute || !player.IsLoggedIn)
 				return;
 
 			// At this point, ChatAboveHeads is not supported, but it could be a thing in the future
 			if (!TShock.Config.EnableChatAboveHeads)
 			{
-				Contributor con;
-				try
-				{
-					con = await Contributors.GetAsync(player.User.ID);
-				}
-				catch (ContributorManager.ContributorNotFoundException)
-				{
+				Contributor con = await Contributors.GetAsync(player.User.ID);
+				if (con == null)
 					return;
-				}
 
 				Tier tier;
 				try
@@ -149,7 +164,7 @@ namespace CTRSystem
 
 				 */
 				var text = String.Format(Config.ContributorChatFormat, player.Group.Name, player.Group.Prefix, player.Name,
-					player.Group.Suffix, e.Text, tier.ShortName ?? "", tier.Name ?? "", con.WebID ?? -1);
+					player.Group.Suffix, e.Text, tier.ShortName ?? "", tier.Name ?? "", con.XenforoID ?? -1);
 				PlayerHooks.OnPlayerChat(player, e.Text, ref text);
 				Color? color = con.ChatColor;
 				if (!color.HasValue)
@@ -199,10 +214,36 @@ namespace CTRSystem
 			else
 				throw new InvalidOperationException("Invalid storage type!");
 
+			string[] _host = Config.Xenforo.MySqlHost.Split(':');
+			var xfdb = new MySqlConnection()
+			{
+				ConnectionString = String.Format("Server={0}; Port={1}; Database={2}; Uid={3}; Pwd={4};",
+					_host[0],
+					_host.Length == 1 ? "3306" : _host[1],
+					Config.Xenforo.MySqlDbName,
+					Config.Xenforo.MySqlUsername,
+					Config.Xenforo.MySqlPassword)
+			};
+
 			#endregion
 
 			Contributors = new ContributorManager(Db);
 			Tiers = new TierManager(Db);
+			XenforoUsers = new XenforoManager(xfdb);
+		}
+
+		void OnLogout(PlayerLogoutEventArgs e)
+		{
+			try
+			{
+				// Set the sync variable to false so that changes applied while the user was off can be applied
+				Contributors.SetSync(e.Player.User.ID, false);
+			}
+			catch
+			{
+				// Catch any exception that is thrown here to prevent pointless error messages
+			}
+
 		}
 
 		async void OnPlayerPermission(PlayerPermissionEventArgs e)
@@ -211,50 +252,13 @@ namespace CTRSystem
 			if (!e.Player.IsLoggedIn || e.Player.User == null)
 				return;
 
-			// Mirror TShock checks to reduce DB load
-			if (e.Player.tempGroup != null)
-			{
-				if (e.Player.tempGroup.HasPermission(e.Permission))
-				{
-					e.Handled = true;
-					return;
-				}
-			}
-			else
-			{
-				if (e.Player.Group.HasPermission(e.Permission))
-				{
-					e.Handled = true;
-					return;
-				}
-			}
-
-			Contributor con;
-			try
-			{
-				con = await Contributors.GetAsync(e.Player.User.ID);
-			}
-			catch (ContributorManager.ContributorNotFoundException)
-			{
+			Contributor con = await Contributors.GetAsync(e.Player.User.ID);
+			if (con == null)
 				return;
-			}
 
 			// Check if a Tier Update is pending, and if it is, perform it before anything else
 			// NOTE: If this occurs, there is a good chance that a delay will be noticeable
-			if ((con.Notifications & Notifications.TierUpdate) == Notifications.TierUpdate)
-			{
-				ContributorUpdates updates = 0;
-				Tier newTier = await Tiers.GetByCreditsAsync(con.TotalCredits);
-				if (newTier.ID != con.Tier)
-				{
-					con.Tier = newTier.ID;
-					updates |= ContributorUpdates.Tier;
-				}
-				con.Notifications ^= Notifications.TierUpdate;
-				updates |= ContributorUpdates.Notifications;
-
-				await Contributors.UpdateAsync(con, updates);
-			}
+			await Tiers.UpgradeTier(con);
 
 			Tier tier = await Tiers.GetAsync(con.Tier);
 			e.Handled = tier.Permissions.HasPermission(e.Permission);
@@ -264,7 +268,60 @@ namespace CTRSystem
 		{
 			string path = Path.Combine(TShock.SavePath, "CTRSystem", "CTRS-Config.json");
 			Config = Config.Read(path);
+
+			// Refetch all contributor data
+			Task.Run(() => Contributors.LoadCache());
+
+			// Refresh tier data
+			Tiers.Refresh();
 		}
+
+		#region SEconomy
+
+		void SEconomyLoaded(object sender, EventArgs e)
+		{
+			SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += SEconomyBankTransactionPending;
+		}
+
+		void SEconomyUnloaded(object sender, EventArgs e)
+		{
+			SEconomyPlugin.Instance.RunningJournal.BankTransactionPending -= SEconomyBankTransactionPending;
+		}
+
+		async void SEconomyBankTransactionPending(object sender, PendingTransactionEventArgs e)
+		{
+			// Should only work with system accounts as this will also make the sender pay more currency
+			if (SEconomyPlugin.Instance != null && e.ToAccount != null && e.FromAccount != null && e.FromAccount.IsSystemAccount)
+			{
+				// Find the tshock user
+				var user = TShock.Users.GetUserByName(e.ToAccount.UserAccountName);
+				if (user == null)
+					return;
+
+				Contributor con = await Contributors.GetAsync(user.ID);
+				if (con == null)
+					return;
+
+				// Get the tier, find the experience multiplier
+				Tier tier = await Tiers.GetAsync(con.Tier);
+				if (tier == null)
+				{
+					TShock.Log.ConsoleError($"CTRS: contributor {con.UserID.Value} has an invalid tier ID! ({con.Tier})");
+					return;
+				}
+
+				// If TierUpdate is true, perform the update
+				await Tiers.UpgradeTier(con);
+
+				if (tier.ExperienceMultiplier != 1f)
+				{
+					// Multiply the amount of currency gained by the experience multiplier
+					e.Amount = new Money(Convert.ToInt64(e.Amount.Value * tier.ExperienceMultiplier));
+				}
+			}
+		}
+
+		#endregion
 
 		async void UpdateNotifications(EventArgs e)
 		{
@@ -273,28 +330,12 @@ namespace CTRSystem
 				lastNotification = DateTime.Now;
 				foreach (TSPlayer player in TShock.Players.Where(p => p != null && p.Active && p.IsLoggedIn && p.User != null))
 				{
-					Contributor con;
-					try
-					{
-						con = await Contributors.GetAsync(player.User.ID);
-					}
-					catch (ContributorManager.ContributorNotFoundException)
-					{
-						continue;
-					}
+					Contributor con = await Contributors.GetAsync(player.User.ID);
+					if (con == null)
+						return;
 
 					ContributorUpdates updates = 0;
-					if ((con.Notifications & Notifications.TierUpdate) == Notifications.TierUpdate)
-					{
-						Tier tier = await Tiers.GetByCreditsAsync(con.TotalCredits);
-						if (con.Tier != tier.ID)
-						{
-							con.Tier = tier.ID;
-							updates |= ContributorUpdates.Tier;
-						}
-						con.Notifications ^= Notifications.TierUpdate;
-						updates |= ContributorUpdates.Notifications;
-					}
+					await Tiers.UpgradeTier(con);
 
 					if ((con.Notifications & Notifications.Introduction) != Notifications.Introduction)
 					{
@@ -327,7 +368,7 @@ namespace CTRSystem
 						updates |= ContributorUpdates.Notifications;
 					}
 
-					if (updates != 0 && !await Contributors.UpdateAsync(con, updates) && Config.LogDatabaseErrors)
+					if (!await Contributors.UpdateAsync(con, updates) && Config.LogDatabaseErrors)
 						TShock.Log.ConsoleError("CTRS-DB: something went wrong while updating a contributor's notifications.");
 				}
 			}

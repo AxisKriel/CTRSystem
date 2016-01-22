@@ -10,11 +10,9 @@ namespace CTRSystem.DB
 	{
 		public int? UserID { get; set; }
 
-		public int? WebID { get; set; }
+		public int? XenforoID { get; set; }
 
-		public int Credits { get; set; }
-
-		public int TotalCredits { get; set; }
+		public float TotalCredits { get; set; }
 
 		/// <summary>
 		/// The date of the last donation made by the contributor.
@@ -30,14 +28,14 @@ namespace CTRSystem.DB
 
 		public Settings Settings { get; set; }
 
+		/// <summary>
+		/// Local-only variable used to keep the contributor's data synced.
+		/// </summary>
+		public bool Synced { get; set; }
+
 		public Contributor(int? userID)
 		{
 			UserID = userID;
-		}
-
-		public Contributor(int userID, int credits) : this(userID)
-		{
-			Credits = credits;
 		}
 	}
 }

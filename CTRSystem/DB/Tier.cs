@@ -12,7 +12,7 @@ namespace CTRSystem.DB
 
 		public string Name { get; set; }
 
-		public int CreditsRequired { get; set; }
+		public float CreditsRequired { get; set; }
 
 		public string ShortName { get; set; }
 

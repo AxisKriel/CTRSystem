@@ -7,6 +7,10 @@ using System.Threading.Tasks;
 using CTRSystem.Configuration;
 using CTRSystem.DB;
 using TShockAPI;
+using Rests;
+using TShockAPI.DB;
+using HttpServer;
+using System.Net;
 
 namespace CTRSystem
 {
@@ -14,6 +18,22 @@ namespace CTRSystem
 	{
 		private static string spe = TShockAPI.Commands.Specifier;
 		public static string Tag = TShock.Utils.ColorTag("CTRS:", Color.Purple);
+
+		public static async void Authenticate(CommandArgs args)
+		{
+			Color c = Color.LightGreen;
+			if (args.Parameters.Count != 1)
+			{
+				args.Player.SendMessage($"Usage: {spe}auth <code>", c);
+				args.Player.SendMessage($"You can get your code in your profile page at {TShock.Utils.ColorTag(CTRS.Config.AuthCodeGetURL, Color.White)}", c);
+			}
+			else
+			{
+				string authCode = args.Parameters[0];
+				WebClient client = new WebClient();
+				string result = await client.DownloadStringTaskAsync(CTRS.Config.AuthCodeHandlerURL + "?code=" + authCode);
+			}
+		}
 
 		public static async void Contributions(CommandArgs args)
 		{
@@ -109,5 +129,182 @@ namespace CTRSystem
 				}
 			}
 		}
+
+		public static void RestBindUser(RestRequestArgs args)
+		{
+
+		}
+
+		public static void RestNewTransaction(RestRequestArgs args)
+		{
+
+		}
+
+		#region REST Utility Methods
+
+		private static RestObject RestError(string message, string status = "400")
+		{
+			return new RestObject(status) { Error = message };
+		}
+
+		private static RestObject RestResponse(string message, string status = "200")
+		{
+			return new RestObject(status) { Response = message };
+		}
+
+		private static RestObject RestMissingParam(string var)
+		{
+			return RestError("Missing or empty " + var + " parameter");
+		}
+
+		private static RestObject RestMissingParam(params string[] vars)
+		{
+			return RestMissingParam(string.Join(", ", vars));
+		}
+
+		private static RestObject RestInvalidParam(string var)
+		{
+			return RestError("Missing or invalid " + var + " parameter");
+		}
+
+		private static bool GetBool(string val, bool def)
+		{
+			bool ret;
+			return bool.TryParse(val, out ret) ? ret : def;
+		}
+
+		private static object PlayerFind(IParameterCollection parameters)
+		{
+			string name = parameters["player"];
+			if (string.IsNullOrWhiteSpace(name))
+				return RestMissingParam("player");
+
+			var found = TShock.Utils.FindPlayer(name);
+			switch (found.Count)
+			{
+				case 1:
+					return found[0];
+				case 0:
+					return RestError("Player " + name + " was not found");
+				default:
+					return RestError("Player " + name + " matches " + found.Count + " players");
+			}
+		}
+
+		private static object UserFind(IParameterCollection parameters)
+		{
+			string name = parameters["user"];
+			if (string.IsNullOrWhiteSpace(name))
+				return RestMissingParam("user");
+
+			User user;
+			string type = parameters["type"];
+			try
+			{
+				switch (type)
+				{
+					case null:
+					case "name":
+						type = "name";
+						user = TShock.Users.GetUserByName(name);
+						break;
+					case "id":
+						user = TShock.Users.GetUserByID(Convert.ToInt32(name));
+						break;
+					default:
+						return RestError("Invalid Type: '" + type + "'");
+				}
+			}
+			catch (Exception e)
+			{
+				return RestError(e.Message);
+			}
+
+			if (null == user)
+				return RestError(String.Format("User {0} '{1}' doesn't exist", type, name));
+
+			return user;
+		}
+
+		private static object BanFind(IParameterCollection parameters)
+		{
+			string name = parameters["ban"];
+			if (string.IsNullOrWhiteSpace(name))
+				return RestMissingParam("ban");
+
+			string type = parameters["type"];
+			if (string.IsNullOrWhiteSpace(type))
+				return RestMissingParam("type");
+
+			Ban ban;
+			switch (type)
+			{
+				case "ip":
+					ban = TShock.Bans.GetBanByIp(name);
+					break;
+				case "name":
+					ban = TShock.Bans.GetBanByName(name, GetBool(parameters["caseinsensitive"], true));
+					break;
+				default:
+					return RestError("Invalid Type: '" + type + "'");
+			}
+
+			if (null == ban)
+				return RestError("Ban " + type + " '" + name + "' doesn't exist");
+
+			return ban;
+		}
+
+		private static object GroupFind(IParameterCollection parameters)
+		{
+			var name = parameters["group"];
+			if (string.IsNullOrWhiteSpace(name))
+				return RestMissingParam("group");
+
+			var group = TShock.Groups.GetGroupByName(name);
+			if (null == group)
+				return RestError("Group '" + name + "' doesn't exist");
+
+			return group;
+		}
+
+		private static Dictionary<string, object> PlayerFilter(TSPlayer tsPlayer, IParameterCollection parameters, bool viewips = false)
+		{
+			var player = new Dictionary<string, object>
+				{
+					{"nickname", tsPlayer.Name},
+					{"username", tsPlayer.User == null ? "" : tsPlayer.User.Name},
+					{"group", tsPlayer.Group.Name},
+					{"active", tsPlayer.Active},
+					{"state", tsPlayer.State},
+					{"team", tsPlayer.Team},
+				};
+
+			if (viewips)
+			{
+				player.Add("ip", tsPlayer.IP);
+			}
+			foreach (IParameter filter in parameters)
+			{
+				if (player.ContainsKey(filter.Name) && !player[filter.Name].Equals(filter.Value))
+					return null;
+			}
+			return player;
+		}
+
+		private static object PlayerSetMute(IParameterCollection parameters, bool mute)
+		{
+			var ret = PlayerFind(parameters);
+			if (ret is RestObject)
+				return ret;
+
+			TSPlayer player = (TSPlayer)ret;
+			player.mute = mute;
+			var verb = mute ? "muted" : "unmuted";
+			player.SendInfoMessage("You have been remotely " + verb);
+			return RestResponse("Player " + player.Name + " was " + verb);
+		}
+
+		#endregion
 	}
 }

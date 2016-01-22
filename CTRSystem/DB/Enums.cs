@@ -9,6 +9,8 @@ namespace CTRSystem.DB
 	[Flags]
 	public enum ContributorUpdates
 	{
+		TotalCredits,
+		LastDonation,
 		Tier,
 		ChatColor,
 		Notifications,

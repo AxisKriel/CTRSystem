@@ -13,7 +13,7 @@ namespace CTRSystem.Configuration
 	{
 		public string StorageType { get; set; } = "sqlite";
 
-		public string MySqlHost { get; set; } = "";
+		public string MySqlHost { get; set; } = "localhost:3306";
 
 		public string MySqlDbName { get; set; } = "";
 
@@ -27,16 +27,23 @@ namespace CTRSystem.Configuration
 
 		public List<string> AdditionalCommandAliases { get; set; } = new List<string>
 		{
-
+			"ctrsystem",
+			"contributions"
 		};
 
 		public string ContributorChatFormat { get; set; } = TShock.Config.ChatFormat;
 
 		public string ContributeURL { get; set; } = "sbplanet.co/forums/index.php?adcredits/packages";
 
+		public string AuthCodeGetURL { get; set; } = "sbplanet.co/forums/link-account.php";
+
+		public string AuthCodeHandlerURL { get; set; } = "http://sbplanet.co/auth-handler.php";
+
 		public int NotificationCheckSeconds { get; set; } = 30;
 
 		public int TierRefreshMinutes { get; set; } = 30;
+
+		public XenforoConfig Xenforo { get; set; } = new XenforoConfig();
 
 		public Texts Texts { get; set; } = new Texts();
 

@@ -53,18 +53,18 @@ namespace CTRSystem.Configuration
 		/// </summary>
 		/// <param name="player">The contributor to take elements from.</param>
 		/// <returns>The formatted string.</returns>
-		public string FormatInfo(Contributor contributor, Tier tier = null, Tier nextTier = null)
+		public string FormatInfo(Contributor contributor, float credits, Tier tier = null, Tier nextTier = null)
 		{
 
 			return String.Format(Info,
 				contributor.UserID.HasValue ? contributor.UserID.Value.ToString() : "N/A",
-				contributor.WebID.HasValue ? contributor.WebID.Value.ToString() : "N/A",
-				String.Format(CTRS.Config.CreditsFormat, contributor.Credits),
+				contributor.XenforoID.HasValue ? contributor.XenforoID.Value.ToString() : "N/A",
+				String.Format(CTRS.Config.CreditsFormat, credits),
 				String.Format(CTRS.Config.CreditsFormat, contributor.TotalCredits),
 				contributor.LastDonation == DateTime.MinValue ? "N/A" : contributor.LastDonation.ToString("d-MMM-yyyy"),
 				tier != null ? tier.ChatColor.HasValue ? TShock.Utils.ColorTag(tier.Name, tier.ChatColor.Value) : tier.Name : "N/A",
 				nextTier != null ? nextTier.ChatColor.HasValue ? TShock.Utils.ColorTag(nextTier.Name, nextTier.ChatColor.Value) : nextTier.Name : "N/A",
-				(nextTier != null && tier != null) ? (nextTier.CreditsRequired - contributor.Credits).ToString() : "N/A",
+				(nextTier != null && tier != null) ? (nextTier.CreditsRequired - credits).ToString() : "N/A",
 				Tools.ColorToRGB(contributor.ChatColor));
 		}
 

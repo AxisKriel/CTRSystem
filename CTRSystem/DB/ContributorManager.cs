@@ -5,13 +5,20 @@ using System.Threading.Tasks;
 using MySql.Data.MySqlClient;
 using TShockAPI;
 using TShockAPI.DB;
+using CTRSystem.Extensions;
 
 namespace CTRSystem.DB
 {
 	public class ContributorManager
 	{
 		private IDbConnection db;
+		private List<Contributor> _cache = new List<Contributor>();
 		private object syncLock = new object();
+
+		public List<Contributor> Cache
+		{
+			get { return _cache; }
+		}
 
 		public ContributorManager(IDbConnection db)
 		{
@@ -24,10 +31,9 @@ namespace CTRSystem.DB
 			if (creator.EnsureTableStructure(new SqlTable("Contributors",
 				new SqlColumn("ID", MySqlDbType.Int32) { AutoIncrement = true, Primary = true },
 				new SqlColumn("UserID", MySqlDbType.Int32) { Unique = true, DefaultValue = null },
-				new SqlColumn("WebID", MySqlDbType.Int32) { Unique = true, DefaultValue = null },
-				new SqlColumn("Credits", MySqlDbType.Int32),
-				new SqlColumn("TotalCredits", MySqlDbType.Int32),
-				new SqlColumn("LastDonation", MySqlDbType.Text) { DefaultValue = DateTime.MinValue.ToString("s") },
+				new SqlColumn("XenforoID", MySqlDbType.Int32) { Unique = true, DefaultValue = null },
+				new SqlColumn("TotalCredits", MySqlDbType.Float),
+				new SqlColumn("LastDonation", MySqlDbType.Int64) { DefaultValue = null },
 				new SqlColumn("Tier", MySqlDbType.Int32),
 				new SqlColumn("ChatColor", MySqlDbType.Text),
 				new SqlColumn("Notifications", MySqlDbType.Int32),
@@ -35,57 +41,101 @@ namespace CTRSystem.DB
 			{
 				TShock.Log.ConsoleInfo("CTRS: created table 'Contributors'");
 			}
+
+			// Load all contributors to the cache
+			Task.Run(() => LoadCache());
 		}
 
-		public Task<Contributor> GetAsync(int userID)
+		/// <summary>
+		/// Loads contributor data from the database to the memory cache.
+		/// </summary>
+		/// <returns>The task for this action.</returns>
+		public async Task LoadCache()
+		{
+			_cache = await GetAllAsync();
+		}
+
+		public Task<Contributor> GetAsync(int userID, bool throwExceptions = false)
 		{
 			return Task.Run(() =>
 			{
-				string query = "SELECT * FROM Contributors WHERE UserID = @0;";
-				using (var result = db.QueryReader(query, userID))
+				Contributor contributor = _cache.Find(c => c.UserID.HasValue && c.UserID.Value == userID);
+				if (contributor == null)
+					return null;
+				else if (!contributor.Synced)
 				{
-					if (result.Read())
+					string query = "SELECT * FROM Contributors WHERE UserID = @0;";
+					using (var result = db.QueryReader(query, userID))
 					{
-						return new Contributor(userID)
+						if (result.Read())
 						{
-							WebID = result.Get<int?>("WebID"),
-							Credits = result.Get<int>("Credits"),
-							TotalCredits = result.Get<int>("TotalCredits"),
-							LastDonation = DateTime.Parse(result.Get<string>("LastDonation")),
-							Tier = result.Get<int>("Tier"),
-							ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor")),
-							Notifications = (Notifications)result.Get<int>("Notifications"),
-							Settings = (Settings)result.Get<int>("Settings")
-						};
+							contributor = new Contributor(userID)
+							{
+								XenforoID = result.Get<int?>("XenforoID"),
+								//Credits = result.Get<int>("Credits"),
+								TotalCredits = result.Get<float>("TotalCredits"),
+								LastDonation = result.Get<long>("LastDonation").FromUnixTime(),
+								Tier = result.Get<int>("Tier"),
+								ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor")),
+								Notifications = (Notifications)result.Get<int>("Notifications"),
+								Settings = (Settings)result.Get<int>("Settings"),
+								Synced = true
+							};
+							_cache.RemoveAll(c => c.UserID.HasValue && c.UserID.Value == userID);
+							_cache.Add(contributor);
+							return contributor;
+						}
+						_cache.RemoveAll(c => c.UserID.HasValue && c.UserID.Value == userID);
+						if (throwExceptions)
+							throw new ContributorNotFoundException(userID);
+						else
+							return null;
 					}
-					throw new ContributorNotFoundException(userID);
 				}
+				else
+					return contributor;
 			});
 		}
 
-		public Task<Contributor> GetByWebIDAsync(int webID)
+		public Task<Contributor> GetByXenforoIDAsync(int xenforoID, bool throwExceptions = false)
 		{
 			return Task.Run(() =>
 			{
-				string query = "SELECT * FROM Contributors WHERE WebID = @0;";
-				using (var result = db.QueryReader(query, webID))
+				Contributor contributor = _cache.Find(c => c.XenforoID.HasValue && c.XenforoID.Value == xenforoID);
+				if (contributor == null)
+					return null;
+				else if (!contributor.Synced)
 				{
-					if (result.Read())
+					string query = "SELECT * FROM Contributors WHERE XenforoID = @0;";
+					using (var result = db.QueryReader(query, xenforoID))
 					{
-						return new Contributor(result.Get<int?>("UserID"))
+						if (result.Read())
 						{
-							WebID = webID,
-							Credits = result.Get<int>("Credits"),
-							TotalCredits = result.Get<int>("TotalCredits"),
-							LastDonation = DateTime.Parse(result.Get<string>("LastDonation")),
-							Tier = result.Get<int>("Tier"),
-							ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor")),
-							Notifications = (Notifications)result.Get<int>("Notifications"),
-							Settings = (Settings)result.Get<int>("Settings")
-						};
+							contributor = new Contributor(result.Get<int?>("UserID"))
+							{
+								XenforoID = xenforoID,
+								//Credits = result.Get<int>("Credits"),
+								TotalCredits = result.Get<float>("TotalCredits"),
+								LastDonation = result.Get<long>("LastDonation").FromUnixTime(),
+								Tier = result.Get<int>("Tier"),
+								ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor")),
+								Notifications = (Notifications)result.Get<int>("Notifications"),
+								Settings = (Settings)result.Get<int>("Settings"),
+								Synced = true
+							};
+							_cache.RemoveAll(c => c.XenforoID.HasValue && c.XenforoID.Value == xenforoID);
+							_cache.Add(contributor);
+							return contributor;
+						}
+						_cache.RemoveAll(c => c.XenforoID.HasValue && c.XenforoID == xenforoID);
+						if (throwExceptions)
+							throw new ContributorNotFoundException(xenforoID);
+						else
+							return null;
 					}
-					throw new ContributorNotFoundException(webID);
 				}
+				else
+					return contributor;
 			});
 		}
 
@@ -101,10 +151,10 @@ namespace CTRSystem.DB
 					{
 						list.Add(new Contributor(result.Get<int?>("UserID"))
 						{
-							WebID = result.Get<int?>("WebID"),
-							Credits = result.Get<int>("Credits"),
-							TotalCredits = result.Get<int>("TotalCredits"),
-							LastDonation = DateTime.Parse(result.Get<string>("LastDonation")),
+							XenforoID = result.Get<int?>("XenforoID"),
+							//Credits = result.Get<int>("Credits"),
+							TotalCredits = result.Get<float>("TotalCredits"),
+							LastDonation = result.Get<long>("LastDonation").FromUnixTime(),
 							Tier = result.Get<int>("Tier"),
 							ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor")),
 							Notifications = (Notifications)result.Get<int>("Notifications"),
@@ -116,6 +166,26 @@ namespace CTRSystem.DB
 			});
 		}
 
+		/// <summary>
+		/// Clears up the cache, requiring all contributor data to be fetched once again.
+		/// </summary>
+		public void ClearCache()
+		{
+			_cache.Clear();
+		}
+
+		/// <summary>
+		/// Sets the sync variable of a contributor, if it exists within the cache.
+		/// </summary>
+		/// <param name="userID">The user ID of the contributor.</param>
+		/// <param name="synced">Whether the contributor is synced or not.</param>
+		public void SetSync(int userID, bool synced)
+		{
+			Contributor con = _cache.Find(c => c.UserID == userID);
+			if (con != null)
+				con.Synced = synced;
+		}
+
 		public async Task<bool> UpdateAsync(Contributor contributor, ContributorUpdates updates)
 		{
 			if (updates == 0)
@@ -124,19 +194,36 @@ namespace CTRSystem.DB
 			return await Task.Run(() =>
 			{
 				List<string> updatesList = new List<string>();
+				if ((updates & ContributorUpdates.TotalCredits) == ContributorUpdates.TotalCredits)
+					updatesList.Add("TotalCredits = @1");
+				if ((updates & ContributorUpdates.LastDonation) == ContributorUpdates.LastDonation)
+					updatesList.Add("LastDonation = @2");
 				if ((updates & ContributorUpdates.Tier) == ContributorUpdates.Tier)
-					updatesList.Add("Tier = @1");
+					updatesList.Add("Tier = @3");
 				if ((updates & ContributorUpdates.ChatColor) == ContributorUpdates.ChatColor)
-					updatesList.Add("ChatColor = @2");
+					updatesList.Add("ChatColor = @4");
 				if ((updates & ContributorUpdates.Notifications) == ContributorUpdates.Notifications)
-					updatesList.Add("Notifications = @3");
+					updatesList.Add("Notifications = @5");
 				if ((updates & ContributorUpdates.Settings) == ContributorUpdates.Settings)
-					updatesList.Add("Settings = @4");
+					updatesList.Add("Settings = @6");
 
 				string query = $"UPDATE Contributors SET {String.Join(", ", updatesList)} WHERE UserID = @0;";
 				lock (syncLock)
 				{
-					return (db.Query(query, contributor.UserID, contributor.Tier, Tools.ColorToRGB(contributor.ChatColor), (int)contributor.Notifications, (int)contributor.Settings) == 1);
+					if (db.Query(query, contributor.UserID,
+						contributor.TotalCredits,
+						contributor.LastDonation.ToUnixTime(),
+						contributor.Tier,
+						Tools.ColorToRGB(contributor.ChatColor),
+						(int)contributor.Notifications,
+						(int)contributor.Settings) == 1)
+					{
+						_cache.RemoveAll(c => c.UserID.HasValue && c.UserID.Value == contributor.UserID.Value);
+						_cache.Add(contributor);
+						return true;
+					}
+					else
+						return false;
 				}
 			});
 		}
