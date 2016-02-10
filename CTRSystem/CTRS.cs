@@ -191,6 +191,11 @@ namespace CTRSystem
 				HelpText = "Manages contributor settings. You must have contributed at least once before using this command."
 			});
 
+			TShockAPI.Commands.ChatCommands.Add(new Command(Permissions.Auth, Commands.Authenticate, "auth", "authenticate")
+			{
+				HelpText = "Connects your Xenforo account to your TShock account. Generate an auth code first by visiting your user control panel."
+			});
+
 			#endregion
 
 			#region DB

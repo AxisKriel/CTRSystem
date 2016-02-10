@@ -194,23 +194,26 @@ namespace CTRSystem.DB
 			return await Task.Run(() =>
 			{
 				List<string> updatesList = new List<string>();
+				if ((updates & ContributorUpdates.XenforoID) == ContributorUpdates.XenforoID)
+					updatesList.Add("XenforoID = @1");
 				if ((updates & ContributorUpdates.TotalCredits) == ContributorUpdates.TotalCredits)
-					updatesList.Add("TotalCredits = @1");
+					updatesList.Add("TotalCredits = @2");
 				if ((updates & ContributorUpdates.LastDonation) == ContributorUpdates.LastDonation)
-					updatesList.Add("LastDonation = @2");
+					updatesList.Add("LastDonation = @3");
 				if ((updates & ContributorUpdates.Tier) == ContributorUpdates.Tier)
-					updatesList.Add("Tier = @3");
+					updatesList.Add("Tier = @4");
 				if ((updates & ContributorUpdates.ChatColor) == ContributorUpdates.ChatColor)
-					updatesList.Add("ChatColor = @4");
+					updatesList.Add("ChatColor = @5");
 				if ((updates & ContributorUpdates.Notifications) == ContributorUpdates.Notifications)
-					updatesList.Add("Notifications = @5");
+					updatesList.Add("Notifications = @6");
 				if ((updates & ContributorUpdates.Settings) == ContributorUpdates.Settings)
-					updatesList.Add("Settings = @6");
+					updatesList.Add("Settings = @7");
 
 				string query = $"UPDATE Contributors SET {String.Join(", ", updatesList)} WHERE UserID = @0;";
 				lock (syncLock)
 				{
 					if (db.Query(query, contributor.UserID,
+						contributor.XenforoID,
 						contributor.TotalCredits,
 						contributor.LastDonation.ToUnixTime(),
 						contributor.Tier,

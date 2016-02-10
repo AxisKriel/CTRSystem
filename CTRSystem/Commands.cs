@@ -14,6 +14,13 @@ using System.Net;
 
 namespace CTRSystem
 {
+	public enum ReturnCode
+	{
+		DatabaseError = 0,
+		Success = 200,
+		NotFound = 404
+	}
+
 	public class Commands
 	{
 		private static string spe = TShockAPI.Commands.Specifier;
@@ -21,7 +28,22 @@ namespace CTRSystem
 
 		public static async void Authenticate(CommandArgs args)
 		{
+			if (!args.Player.IsLoggedIn || args.Player.User == null)
+			{
+				args.Player.SendErrorMessage("You must be logged in to do that!");
+				return;
+			}
+
 			Color c = Color.LightGreen;
+
+			// Only contributors may bind their accounts but this can be changed in the future
+			Contributor contributor = await CTRS.Contributors.GetAsync(args.Player.User.ID);
+			if (contributor == null)
+			{
+				args.Player.SendMessage("Currently, only contributors are able to connect their forum accounts to their game accounts.", c);
+				return;
+			}
+
 			if (args.Parameters.Count != 1)
 			{
 				args.Player.SendMessage($"Usage: {spe}auth <code>", c);
@@ -31,7 +53,28 @@ namespace CTRSystem
 			{
 				string authCode = args.Parameters[0];
 				WebClient client = new WebClient();
-				string result = await client.DownloadStringTaskAsync(CTRS.Config.AuthCodeHandlerURL + "?code=" + authCode);
+				var sb = new StringBuilder();
+				sb.Append(CTRS.Config.AuthCodeHandlerURL);
+				sb.Append("?code=").Append(authCode);
+				sb.Append("&user=").Append(args.Player.User.ID);
+				string[] result = (await client.DownloadStringTaskAsync(sb.ToString())).Split(',');
+				ReturnCode code = (ReturnCode)Int32.Parse(result[0]);
+				if (code == ReturnCode.DatabaseError)
+				{
+					args.Player.SendMessage("An error occurred while trying to contact the xenforo database. Wait a few minutes and try again.", c);
+				}
+				else if (code == ReturnCode.NotFound)
+				{
+					args.Player.SendMessage("The auth code you entered was invalid. Make sure you've entered it correctly (NOTE: codes are case-sensitive).", c);
+				}
+				else
+				{
+					contributor.XenforoID = Int32.Parse(result[1]);
+					if (await CTRS.Contributors.UpdateAsync(contributor, ContributorUpdates.XenforoID))
+						args.Player.SendMessage($"You have binded this account to {TShock.Utils.ColorTag("xenforo:" + contributor.XenforoID.Value.ToString(), Color.White)}.", c);
+					else
+						args.Player.SendMessage("Something went wrong with the database... contact an admin and try again later.", c);
+				}
 			}
 		}
 
@@ -40,16 +83,12 @@ namespace CTRSystem
 			// Even with the command permission, the player must be logged in and be a contributor to proceed
 			if (!args.Player.IsLoggedIn || args.Player.User == null)
 			{
-				args.Player.SendErrorMessage("You must be logged in to use this command!");
+				args.Player.SendErrorMessage("You must be logged in to do that!");
 				return;
 			}
 
-			Contributor con;
-			try
-			{
-				con = await CTRS.Contributors.GetAsync(args.Player.User.ID);
-			}
-			catch (ContributorManager.ContributorNotFoundException)
+			Contributor con = await CTRS.Contributors.GetAsync(args.Player.User.ID);
+			if (con == null)
 			{
 				args.Player.SendInfoMessage($"{Tag} You must be a contributor to use this command. Find out how to contribute to the server here: "
 					+ CTRS.Config.GetContributeURL());

@@ -9,6 +9,7 @@ namespace CTRSystem.DB
 	[Flags]
 	public enum ContributorUpdates
 	{
+		XenforoID,
 		TotalCredits,
 		LastDonation,
 		Tier,

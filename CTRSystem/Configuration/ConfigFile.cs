@@ -37,7 +37,7 @@ namespace CTRSystem.Configuration
 
 		public string AuthCodeGetURL { get; set; } = "sbplanet.co/forums/link-account.php";
 
-		public string AuthCodeHandlerURL { get; set; } = "http://sbplanet.co/auth-handler.php";
+		public string AuthCodeHandlerURL { get; set; } = "http://sbplanet.co/authenticate.php";
 
 		public int NotificationCheckSeconds { get; set; } = 30;
 
