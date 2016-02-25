@@ -40,40 +40,80 @@ namespace CTRSystem
 			Contributor contributor = await CTRS.Contributors.GetAsync(args.Player.User.ID);
 			if (contributor == null)
 			{
-				args.Player.SendMessage("Currently, only contributors are able to connect their forum accounts to their game accounts.", c);
+				args.Player.SendMessage($"{Tag} Currently, only contributors are able to connect their forum accounts to their game accounts.", c);
 				return;
 			}
 
-			if (args.Parameters.Count != 1)
+			if (args.Parameters.Count == 0)
 			{
-				args.Player.SendMessage($"Usage: {spe}auth <code>", c);
-				args.Player.SendMessage($"You can get your code in your profile page at {TShock.Utils.ColorTag(CTRS.Config.AuthCodeGetURL, Color.White)}", c);
+				args.Player.SendMessage($"{Tag} Usage: {spe}auth <code> OR {spe}auth <username> <password>", c);
+				//args.Player.SendMessage($"You can get your code in your profile page at {TShock.Utils.ColorTag(CTRS.Config.AuthCodeGetURL, Color.White)}", c);
+				args.Player.SendMessage($"{Tag} If using the credentials method, please enter data for an existing forum account.", c);
+				args.Player.SendMessage($"{Tag} Authentication via code is currently disabled.", c);
+			}
+			else if (args.Parameters.Count == 1)
+			{
+				// Temporary lockdown until a proper interface is made
+				args.Player.SendMessage($"{Tag} Authentication via code is currently disabled. Please use the forum credentials method.", c);
+				return;
+
+				//string authCode = args.Parameters[0];
+				//WebClient client = new WebClient();
+				//var sb = new StringBuilder();
+				//sb.Append(CTRS.Config.AuthCodeHandlerURL);
+				//sb.Append("?code=").Append(authCode);
+				//sb.Append("&user=").Append(args.Player.User.ID);
+				//string[] result = (await client.DownloadStringTaskAsync(sb.ToString())).Split(',');
+				//ReturnCode code = (ReturnCode)Int32.Parse(result[0]);
+				//if (code == ReturnCode.DatabaseError)
+				//{
+				//	args.Player.SendMessage("An error occurred while trying to contact the xenforo database. Wait a few minutes and try again.", c);
+				//}
+				//else if (code == ReturnCode.NotFound)
+				//{
+				//	args.Player.SendMessage("The auth code you entered was invalid. Make sure you've entered it correctly (NOTE: codes are case-sensitive).", c);
+				//}
+				//else
+				//{
+				//	contributor.XenforoID = Int32.Parse(result[1]);
+				//	if (await CTRS.Contributors.UpdateAsync(contributor, ContributorUpdates.XenforoID))
+				//		args.Player.SendMessage($"You have binded this account to {TShock.Utils.ColorTag("xenforo:" + contributor.XenforoID.Value.ToString(), Color.White)}.", c);
+				//	else
+				//		args.Player.SendMessage("Something went wrong with the database... contact an admin and try again later.", c);
+				//}
 			}
 			else
 			{
-				string authCode = args.Parameters[0];
-				WebClient client = new WebClient();
-				var sb = new StringBuilder();
-				sb.Append(CTRS.Config.AuthCodeHandlerURL);
-				sb.Append("?code=").Append(authCode);
-				sb.Append("&user=").Append(args.Player.User.ID);
-				string[] result = (await client.DownloadStringTaskAsync(sb.ToString())).Split(',');
-				ReturnCode code = (ReturnCode)Int32.Parse(result[0]);
-				if (code == ReturnCode.DatabaseError)
+				string username = args.Parameters[0];
+				string password = args.Parameters[1];
+
+				Credentials cred = CTRS.CredentialHelper.Get(args.Player);
+				if (cred == null)
+					CTRS.CredentialHelper.AddPlayer(args.Player);
+				CTRS.CredentialHelper.Update(args.Player, username, password);
+
+				LMReturnCode response = await CTRS.CredentialHelper.Authenticate(args.Player, contributor);
+				switch (response)
 				{
-					args.Player.SendMessage("An error occurred while trying to contact the xenforo database. Wait a few minutes and try again.", c);
-				}
-				else if (code == ReturnCode.NotFound)
-				{
-					args.Player.SendMessage("The auth code you entered was invalid. Make sure you've entered it correctly (NOTE: codes are case-sensitive).", c);
-				}
-				else
-				{
-					contributor.XenforoID = Int32.Parse(result[1]);
-					if (await CTRS.Contributors.UpdateAsync(contributor, ContributorUpdates.XenforoID))
-						args.Player.SendMessage($"You have binded this account to {TShock.Utils.ColorTag("xenforo:" + contributor.XenforoID.Value.ToString(), Color.White)}.", c);
-					else
-						args.Player.SendMessage("Something went wrong with the database... contact an admin and try again later.", c);
+					case LMReturnCode.Success:
+						args.Player.SendSuccessMessage($"{Tag} You are now authenticated for the forum account '{username}'.");
+						break;
+					case LMReturnCode.EmptyParameter:
+					case LMReturnCode.InsuficientParameters:
+						args.Player.SendErrorMessage($"Invalid syntax! Proper syntax: {spe}auth <username> <password>");
+						break;
+					case LMReturnCode.UserNotFound:
+						args.Player.SendErrorMessage($"The user '{username}' was not found. Make sure to create a forum account beforehand.");
+						break;
+					case LMReturnCode.IncorrectData:
+						args.Player.SendErrorMessage($"Invalid username or password!");
+						break;
+					case LMReturnCode.UnloadedCredentials:
+						// Should never happen here
+						break;
+					case LMReturnCode.DatabaseError:
+						args.Player.SendMessage($"{Tag} Something went wrong with the database... contact an admin and try again later.", c);
+						break;
 				}
 			}
 		}
@@ -110,8 +150,17 @@ namespace CTRSystem
 					// Keep it null
 				}
 
+				XFUser xfuser;
+				if (con.XenforoID == null || (xfuser = await CTRS.XenforoUsers.GetAsync(args.Player.User.ID)) == null)
+				{
+					args.Player.SendInfoMessage($"{Tag} Oops! It seems you're yet to authenticate to a valid forum account.");
+					args.Player.SendInfoMessage($"{Tag} Use the {spe}auth <username> <password> command to authenticate first.");
+					return;
+				}
+
+				// Finish this info message and then proceed with tests
 				args.Player.SendMessage($"{Tag} Contributions Track & Reward System v{CTRS.PublicVersion}", Color.LightGreen);
-				foreach (string s in Texts.SplitIntoLines(CTRS.Config.Texts.FormatInfo(con, tier, nextTier)))
+				foreach (string s in Texts.SplitIntoLines(CTRS.Config.Texts.FormatInfo(con, xfuser.Credits, tier, nextTier)))
 				{
 					args.Player.SendInfoMessage($"{Tag} {s}");
 				}
@@ -133,7 +182,7 @@ namespace CTRSystem
 					if (await CTRS.Contributors.UpdateAsync(con, ContributorUpdates.ChatColor))
 						args.Player.SendSuccessMessage($"{Tag} You are now using your group's default chat color.");
 					else
-						args.Player.SendErrorMessage($"{Tag} Something went wrong while trying to contact our database. Please inform an administrator.");
+						args.Player.SendErrorMessage($"Something went wrong while trying to contact our database. Please inform an administrator.");
 				}
 				else if (String.IsNullOrEmpty(match.Groups["RGB"].Value))
 				{
@@ -153,7 +202,7 @@ namespace CTRSystem
 				{
 					Color? color = Tools.ColorFromRGB(match.Groups["RGB"].Value);
 					if (!color.HasValue)
-						args.Player.SendErrorMessage($"{Tag} Invalid color format! Proper format: RRR,GGG,BBB");
+						args.Player.SendErrorMessage($"Invalid color format! Proper format: RRR,GGG,BBB");
 					else
 					{
 						con.ChatColor = color;
@@ -163,7 +212,7 @@ namespace CTRSystem
 							args.Player.SendSuccessMessage($"{Tag} Your chat color is now set to {colorString}.");
 						}
 						else
-							args.Player.SendErrorMessage($"{Tag} Something went wrong while trying to contact our database. Please inform an administrator.");
+							args.Player.SendErrorMessage($"Something went wrong while trying to contact our database. Please inform an administrator.");
 					}
 				}
 			}

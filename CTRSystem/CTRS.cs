@@ -59,6 +59,8 @@ namespace CTRSystem
 
 		public static ContributorManager Contributors { get; private set; }
 
+		public static LoginManager CredentialHelper { get; private set; }
+
 		public static TierManager Tiers { get; private set; }
 
 		public static XenforoManager XenforoUsers { get; private set; }
@@ -233,6 +235,7 @@ namespace CTRSystem
 			#endregion
 
 			Contributors = new ContributorManager(Db);
+			CredentialHelper = new LoginManager();
 			Tiers = new TierManager(Db);
 			XenforoUsers = new XenforoManager(xfdb);
 		}

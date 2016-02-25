@@ -15,5 +15,7 @@ namespace CTRSystem.Configuration
 		public string MySqlUsername { get; set; } = "";
 
 		public string MySqlPassword { get; set; } = "";
+
+		public string XenAPIURI { get; set; } = "http://sbplanet.co/forums/api.php";
 	}
 }
