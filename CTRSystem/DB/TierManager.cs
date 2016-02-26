@@ -30,11 +30,11 @@ namespace CTRSystem.DB
 			if (creator.EnsureTableStructure(new SqlTable("Tiers",
 					new SqlColumn("ID", MySqlDbType.Int32) { AutoIncrement = true, Primary = true },
 					new SqlColumn("Name", MySqlDbType.VarChar) { Length = 12, Unique = true },
-					new SqlColumn("CreditsRequired", MySqlDbType.Float),
-					new SqlColumn("ShortName", MySqlDbType.VarChar) { Length = 6 },
-					new SqlColumn("ChatColor", MySqlDbType.Text) { DefaultValue = null },
-					new SqlColumn("Permissions", MySqlDbType.Text),
-					new SqlColumn("ExperienceMultiplier", MySqlDbType.Float) { DefaultValue = "1.00" })))
+					new SqlColumn("CreditsRequired", MySqlDbType.Float) { NotNull = true, DefaultValue = "0" },
+					new SqlColumn("ShortName", MySqlDbType.VarChar) { NotNull = true, DefaultValue = "", Length = 6 },
+					new SqlColumn("ChatColor", MySqlDbType.Text) { NotNull = true, DefaultValue = "" },
+					new SqlColumn("Permissions", MySqlDbType.Text) { NotNull = true, DefaultValue = "" },
+					new SqlColumn("ExperienceMultiplier", MySqlDbType.Float) { NotNull = true, DefaultValue = "1" })))
 			{
 				TShock.Log.ConsoleInfo("CTRS: created table 'Tiers'");
 			}

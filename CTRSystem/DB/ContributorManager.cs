@@ -32,12 +32,12 @@ namespace CTRSystem.DB
 				new SqlColumn("ID", MySqlDbType.Int32) { AutoIncrement = true, Primary = true },
 				new SqlColumn("UserID", MySqlDbType.Int32) { Unique = true, DefaultValue = null },
 				new SqlColumn("XenforoID", MySqlDbType.Int32) { Unique = true, DefaultValue = null },
-				new SqlColumn("TotalCredits", MySqlDbType.Float),
+				new SqlColumn("TotalCredits", MySqlDbType.Float) { NotNull = true, DefaultValue = "0" },
 				new SqlColumn("LastDonation", MySqlDbType.Int64) { DefaultValue = null },
-				new SqlColumn("Tier", MySqlDbType.Int32),
-				new SqlColumn("ChatColor", MySqlDbType.Text),
-				new SqlColumn("Notifications", MySqlDbType.Int32),
-				new SqlColumn("Settings", MySqlDbType.Int32))))
+				new SqlColumn("Tier", MySqlDbType.Int32) { NotNull = true, DefaultValue = "1" },
+				new SqlColumn("ChatColor", MySqlDbType.Text) { NotNull = true, DefaultValue = "" },
+				new SqlColumn("Notifications", MySqlDbType.Int32) { NotNull = true, DefaultValue = "0" },
+				new SqlColumn("Settings", MySqlDbType.Int32) { NotNull = true, DefaultValue = "0" })))
 			{
 				TShock.Log.ConsoleInfo("CTRS: created table 'Contributors'");
 			}

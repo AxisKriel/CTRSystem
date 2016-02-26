@@ -187,13 +187,19 @@ namespace CTRSystem
 
 			#region Commands
 
-			TShockAPI.Commands.ChatCommands.Add(new Command(Permissions.Commands, Commands.Contributions,
+			Action<Command> Add = c =>
+			{
+				TShockAPI.Commands.ChatCommands.RemoveAll(c2 => c2.Names.Exists(s => c.Names.Contains(s)));
+				TShockAPI.Commands.ChatCommands.Add(c);
+			};
+
+			Add(new Command(Permissions.Commands, Commands.Contributions,
 				(new List<string>(Config.AdditionalCommandAliases) { "ctrs" }).ToArray())
 			{
 				HelpText = "Manages contributor settings. You must have contributed at least once before using this command."
 			});
 
-			TShockAPI.Commands.ChatCommands.Add(new Command(Permissions.Auth, Commands.Authenticate, "auth", "authenticate")
+			Add(new Command(Permissions.Auth, Commands.Authenticate, "auth", "authenticate")
 			{
 				HelpText = "Connects your Xenforo account to your TShock account. Generate an auth code first by visiting your user control panel."
 			});
