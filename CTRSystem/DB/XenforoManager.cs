@@ -19,7 +19,14 @@ namespace CTRSystem.DB
 			this.db = db;
 
 			// Make sure the tshock_id column exists
-			db.Query("ALTER TABLE xf_user ADD tshock_id int UNIQUE;");
+			try
+			{
+				db.Query("ALTER TABLE xf_user ADD tshock_id int UNIQUE;");
+			}
+			catch (MySqlException)
+			{
+				// A duplicate column error is thrown if it already exists. Disregard.
+			}
 		}
 
 		public Task<XFUser> GetAsync(int tshockID)
