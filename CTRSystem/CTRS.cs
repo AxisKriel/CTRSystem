@@ -19,6 +19,14 @@ using Wolfje.Plugins.SEconomy.Journal;
 using Config = CTRSystem.Configuration.ConfigFile;
 using Texts = CTRSystem.Configuration.Texts;
 
+/*
+TODO LIST:
+	Properly implement synchronous permission checks (OnPlayerPermission), as async just gets dismissed [ ]
+	Figure out why chat manipulating doesn't work and fix it											[ ]
+	Finish base Texts (Introduction, info) and test Info command										[ ]
+	...
+*/
+
 namespace CTRSystem
 {
 	[ApiVersion(1, 22)]
@@ -81,7 +89,8 @@ namespace CTRSystem
 				ServerApi.Hooks.GameInitialize.Deregister(this, OnInitialize);
 				ServerApi.Hooks.GameUpdate.Deregister(this, UpdateTiers);
 				ServerApi.Hooks.GameUpdate.Deregister(this, UpdateNotifications);
-				ServerApi.Hooks.ServerChat.Deregister(this, OnChat);
+				//ServerApi.Hooks.ServerChat.Deregister(this, OnChat);
+				ServerApi.Hooks.ServerChat.Deregister(this, OnChatSync);
 
 				if (SEconomyPlugin.Instance != null)
 				{
@@ -100,7 +109,8 @@ namespace CTRSystem
 			ServerApi.Hooks.GameInitialize.Register(this, OnInitialize);
 			ServerApi.Hooks.GameUpdate.Register(this, UpdateTiers);
 			ServerApi.Hooks.GameUpdate.Register(this, UpdateNotifications);
-			ServerApi.Hooks.ServerChat.Register(this, OnChat);
+			//ServerApi.Hooks.ServerChat.Register(this, OnChat);
+			ServerApi.Hooks.ServerChat.Register(this, OnChatSync);
 
 			if (SEconomyPlugin.Instance != null)
 			{
@@ -151,6 +161,9 @@ namespace CTRSystem
 				}
 				catch (TierManager.TierNotFoundException)
 				{
+#if DEBUG
+					TShock.Log.ConsoleError("OnChat: Tier fetching didn't return any tier");
+#endif
 					return;
 				}
 
@@ -170,8 +183,91 @@ namespace CTRSystem
 				PlayerHooks.OnPlayerChat(player, e.Text, ref text);
 				Color? color = con.ChatColor;
 				if (!color.HasValue)
+				{
+#if DEBUG
+					TShock.Log.ConsoleInfo("OnChat: Color was null");
+#endif
 					color = new Color(player.Group.R, player.Group.G, player.Group.B);
+				}
 				TShock.Utils.Broadcast(text, color.Value.R, color.Value.G, color.Value.B);
+#if DEBUG
+				TShock.Log.ConsoleInfo("OnChat: Contributor was handled by CTRS");
+#endif
+				e.Handled = true;
+			}
+		}
+
+		void OnChatSync(ServerChatEventArgs e)
+		{
+			if (e.Handled)
+				return;
+
+			// A quick check to reduce DB work when this feature isn't in use
+			if (String.IsNullOrWhiteSpace(Config.ContributorChatFormat) || Config.ContributorChatFormat == TShock.Config.ChatFormat)
+				return;
+
+			var player = TShock.Players[e.Who];
+			if (player == null)
+				return;
+
+			if (e.Text.Length > 500)
+				return;
+
+			// If true, the message is a command, so we skip it
+			if ((e.Text.StartsWith(TShockAPI.Commands.Specifier) || e.Text.StartsWith(TShockAPI.Commands.SilentSpecifier))
+				&& !String.IsNullOrWhiteSpace(e.Text.Substring(1)))
+				return;
+
+			// Player needs to be able to talk, not be muted, and must be logged in
+			if (!player.HasPermission(TShockAPI.Permissions.canchat) || player.mute || !player.IsLoggedIn)
+				return;
+
+			// At this point, ChatAboveHeads is not supported, but it could be a thing in the future
+			if (!TShock.Config.EnableChatAboveHeads)
+			{
+				Contributor con = Contributors.GetAsync(player.User.ID).Result;
+				if (con == null)
+					return;
+
+				Tier tier;
+				try
+				{
+					tier = Tiers.GetByCreditsAsync(con.TotalCredits).Result;
+				}
+				catch (TierManager.TierNotFoundException)
+				{
+#if DEBUG
+					TShock.Log.ConsoleError("OnChat: Tier fetching didn't return any tier");
+#endif
+					return;
+				}
+
+				/* Contributor chat format:
+					{0} - group name
+					{1} - group prefix
+					{2} - player name
+					{3} - group suffix
+					{4} - message text
+					{5} - tier shortname
+					{6} - tier name
+					{7} - webID
+
+				 */
+				var text = String.Format(Config.ContributorChatFormat, player.Group.Name, player.Group.Prefix, player.Name,
+					player.Group.Suffix, e.Text, tier.ShortName ?? "", tier.Name ?? "", con.XenforoID ?? -1);
+				PlayerHooks.OnPlayerChat(player, e.Text, ref text);
+				Color? color = con.ChatColor;
+				if (!color.HasValue)
+				{
+#if DEBUG
+					TShock.Log.ConsoleInfo("OnChat: Color was null");
+#endif
+					color = new Color(player.Group.R, player.Group.G, player.Group.B);
+				}
+				TShock.Utils.Broadcast(text, color.Value.R, color.Value.G, color.Value.B);
+#if DEBUG
+				TShock.Log.ConsoleInfo("OnChat: Contributor was handled by CTRS");
+#endif
 				e.Handled = true;
 			}
 		}
@@ -201,6 +297,7 @@ namespace CTRSystem
 
 			Add(new Command(Permissions.Auth, Commands.Authenticate, "auth", "authenticate")
 			{
+				DoLog = false,
 				HelpText = "Connects your Xenforo account to your TShock account. Generate an auth code first by visiting your user control panel."
 			});
 
@@ -260,22 +357,29 @@ namespace CTRSystem
 
 		}
 
-		async void OnPlayerPermission(PlayerPermissionEventArgs e)
+		void OnPlayerPermission(PlayerPermissionEventArgs e)
 		{
 			// If the player isn't logged it, he's certainly not a contributor
 			if (!e.Player.IsLoggedIn || e.Player.User == null)
 				return;
 
-			Contributor con = await Contributors.GetAsync(e.Player.User.ID);
+			//Contributor con = await Contributors.GetAsync(e.Player.User.ID);
+			Contributor con = Contributors.GetAsync(e.Player.User.ID).Result;
 			if (con == null)
 				return;
 
 			// Check if a Tier Update is pending, and if it is, perform it before anything else
 			// NOTE: If this occurs, there is a good chance that a delay will be noticeable
-			await Tiers.UpgradeTier(con);
+			//await Tiers.UpgradeTier(con);
+			Task.Run(() => Tiers.UpgradeTier(con));
 
-			Tier tier = await Tiers.GetAsync(con.Tier);
+			//Tier tier = await Tiers.GetAsync(con.Tier);
+			Tier tier = Tiers.GetAsync(con.Tier).Result;
 			e.Handled = tier.Permissions.HasPermission(e.Permission);
+#if DEBUG
+			if (e.Handled)
+				TShock.Log.ConsoleInfo("OnPlayerPermission: Contributor had the permission");
+#endif
 		}
 
 		void OnReload(ReloadEventArgs e)

@@ -114,7 +114,13 @@ namespace CTRSystem
 				return LMReturnCode.EmptyParameter;
 			sb.Append("&password=" + c.Password);
 
+#if DEBUG
+			TShock.Log.ConsoleInfo("REQUESTING: " + sb.ToString());
+#endif
 			string response = await client.DownloadStringTaskAsync(sb.ToString());
+#if DEBUG
+			TShock.Log.ConsoleInfo("RESPONSE: " + response);
+#endif
 			var dict = JsonConvert.DeserializeObject<Dictionary<string, string>>(response);
 			if (dict.ContainsKey("hash"))
 			{
@@ -130,7 +136,13 @@ namespace CTRSystem
 				sb.Append(':');
 				sb.Append(hash);
 
+#if DEBUG
+				TShock.Log.ConsoleInfo("REQUESTING: " + sb.ToString());
+#endif
 				response = await client.DownloadStringTaskAsync(sb.ToString());
+#if DEBUG
+				TShock.Log.ConsoleInfo("RESPONSE: " + response);
+#endif
 				dict = JsonConvert.DeserializeObject<Dictionary<string, string>>(response);
 				if (!dict.ContainsKey("user_id"))
 					return LMReturnCode.UserNotFound;
