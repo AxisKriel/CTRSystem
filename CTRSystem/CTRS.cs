@@ -22,7 +22,7 @@ using Texts = CTRSystem.Configuration.Texts;
 /*
 TODO LIST:
 	Properly implement synchronous permission checks (OnPlayerPermission), as async just gets dismissed [ ]
-	Figure out why chat manipulating doesn't work and fix it											[ ]
+	Make chat synchronous (as otherwise it won't work)													[ ]
 	Finish base Texts (Introduction, info) and test Info command										[ ]
 	...
 */
@@ -225,7 +225,7 @@ namespace CTRSystem
 			// At this point, ChatAboveHeads is not supported, but it could be a thing in the future
 			if (!TShock.Config.EnableChatAboveHeads)
 			{
-				Contributor con = Contributors.GetAsync(player.User.ID).Result;
+				Contributor con = Contributors.Get(player.User.ID);
 				if (con == null)
 					return;
 

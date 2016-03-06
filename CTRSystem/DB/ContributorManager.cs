@@ -55,11 +55,28 @@ namespace CTRSystem.DB
 			_cache = await GetAllAsync();
 		}
 
+		/// <summary>
+		/// Gets a contributor from the cache, disregarding their sync state.
+		/// </summary>
+		/// <param name="userID">The contributor ID, usually their user ID.</param>
+		/// <returns>A contributor object, or null if not found.</returns>
+		public Contributor Get(int userID)
+		{
+			return _cache.Find(c => c.UserID.HasValue && c.UserID.Value == userID);
+		}
+
+		/// <summary>
+		/// Asynchronously gets a contributor from the cache.
+		/// Also synchronizes with the database if needed.
+		/// </summary>
+		/// <param name="userID">The contributor ID, usually their user ID.</param>
+		/// <param name="throwExceptions">If true, will throw exceptions when something goes wrong.</param>
+		/// <returns>A contributor object, or null if not found.</returns>
 		public Task<Contributor> GetAsync(int userID, bool throwExceptions = false)
 		{
 			return Task.Run(() =>
 			{
-				Contributor contributor = _cache.Find(c => c.UserID.HasValue && c.UserID.Value == userID);
+				Contributor contributor = Get(userID);
 				if (contributor == null)
 					return null;
 				else if (!contributor.Synced)
@@ -97,11 +114,28 @@ namespace CTRSystem.DB
 			});
 		}
 
+		/// <summary>
+		/// Gets a contributor from the cache, disregarding their sync state.
+		/// </summary>
+		/// <param name="xenforoID">The contributor's xenforo ID, if any.</param>
+		/// <returns>A contributor object, or null if not found.</returns>
+		public Contributor GetByXenforoID(int xenforoID)
+		{
+			return _cache.Find(c => c.XenforoID.HasValue && c.XenforoID.Value == xenforoID);
+		}
+
+		/// <summary>
+		/// Asynchronously gets a contributor from the cache.
+		/// Also synchronizes with the database if needed.
+		/// </summary>
+		/// <param name="xenforoID">The contributor's xenforo ID, if any.</param>
+		/// <param name="throwExceptions">If true, will throw exceptions when something goes wrong.</param>
+		/// <returns>A contributor object, or null if not found.</returns>
 		public Task<Contributor> GetByXenforoIDAsync(int xenforoID, bool throwExceptions = false)
 		{
 			return Task.Run(() =>
 			{
-				Contributor contributor = _cache.Find(c => c.XenforoID.HasValue && c.XenforoID.Value == xenforoID);
+				Contributor contributor = GetByXenforoID(xenforoID);
 				if (contributor == null)
 					return null;
 				else if (!contributor.Synced)
@@ -139,6 +173,10 @@ namespace CTRSystem.DB
 			});
 		}
 
+		/// <summary>
+		/// Asynchronously gets the full list of contributors directly from the database.
+		/// </summary>
+		/// <returns></returns>
 		public Task<List<Contributor>> GetAllAsync()
 		{
 			return Task.Run(() =>
@@ -186,6 +224,34 @@ namespace CTRSystem.DB
 				con.Synced = synced;
 		}
 
+		/// <summary>
+		/// Runs a task to update a contributor's data.
+		/// Logs any exception thrown.
+		/// </summary>
+		/// <param name="contributor">The contributor to update with the already-updated values set.</param>
+		/// <param name="updates">The list of values to update.</param>
+		/// <returns>True if it goes smooth, false if exceptions are thrown.</returns>
+		public bool Update(Contributor contributor, ContributorUpdates updates)
+		{
+			try
+			{
+				Task.Run(() => UpdateAsync(contributor, updates));
+				return true;
+			}
+			catch (Exception e)
+			{
+				TShock.Log.ConsoleError($"CTRS: An error occurred while updating a contributor's (ID: {contributor.UserID.Value} info\nMessage: {e.Message}\nCheck logs for more details");
+				TShock.Log.Error(e.ToString());
+				return false;
+			}
+		}
+
+		/// <summary>
+		/// Asynchronously updates a contributor's data.
+		/// </summary>
+		/// <param name="contributor">The contributor to update with the already-updated values set.</param>
+		/// <param name="updates">The list of values to update.</param>
+		/// <returns>True if it updates one row, false if anything else.</returns>
 		public async Task<bool> UpdateAsync(Contributor contributor, ContributorUpdates updates)
 		{
 			if (updates == 0)
