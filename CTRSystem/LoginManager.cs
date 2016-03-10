@@ -8,6 +8,7 @@ using TShockAPI.DB;
 using System.Net;
 using Newtonsoft.Json;
 using CTRSystem.DB;
+using System.IO;
 
 namespace CTRSystem
 {
@@ -24,7 +25,7 @@ namespace CTRSystem
 
 	public class LoginManager
 	{
-		private List<Credentials> activePlayers = new List<Credentials>();
+		private Dictionary<int, Credentials> activePlayers = new Dictionary<int, Credentials>();
 
 		public LoginManager()
 		{
@@ -33,10 +34,10 @@ namespace CTRSystem
 
 		public bool AddPlayer(int userID)
 		{
-			if (activePlayers.Exists(c => c.ID == userID))
+			if (activePlayers.ContainsKey(userID))
 				return false;
 
-			activePlayers.Add(new Credentials(userID));
+			activePlayers.Add(userID, new Credentials());
 			return true;
 		}
 
@@ -50,7 +51,9 @@ namespace CTRSystem
 
 		public Credentials Get(int userID)
 		{
-			return activePlayers.Find(c => c.ID == userID);
+			if (!activePlayers.ContainsKey(userID))
+				return null;
+			return activePlayers[userID];
 		}
 
 		public Credentials Get(TSPlayer player)
@@ -63,7 +66,7 @@ namespace CTRSystem
 
 		public bool RemovePlayer(int userID)
 		{
-			return activePlayers.RemoveAll(c => c.ID == userID) > 0;
+			return activePlayers.Remove(userID);
 		}
 
 		public bool RemovePlayer(TSPlayer player)
@@ -76,14 +79,13 @@ namespace CTRSystem
 
 		public bool Update(int userID, string username = null, string password = null)
 		{
-			Credentials c = Get(userID);
-			if (c == null)
+			if (!activePlayers.ContainsKey(userID))
 				return false;
 
 			if (username != null)
-				c.Username = username;
+				activePlayers[userID].Username = username;
 			if (password != null)
-				c.Password = password;
+				activePlayers[userID].Password = password;
 			return true;
 		}
 
@@ -92,7 +94,7 @@ namespace CTRSystem
 			if (player == null || player.User == null)
 				return false;
 
-			return Update(player.User.ID);
+			return Update(player.User.ID, username, password);
 		}
 
 		public async Task<LMReturnCode> Authenticate(TSPlayer player, Contributor contributor)
@@ -102,30 +104,73 @@ namespace CTRSystem
 				return LMReturnCode.UnloadedCredentials;
 
 			WebClient client = new WebClient();
+			client.Headers.Add("Accept-Language", " en-US,en;q=0.5");
+			client.Headers.Add("Accept-Encoding", "gzip, deflate");
+			client.Headers.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+			client.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:46.0) Gecko/20100101 Firefox/46.0");
+			client.Headers.Add("Content-Type", "application/json;charset=UTF-8");
+
 			var sb = new StringBuilder();
 			sb.Append(CTRS.Config.Xenforo.XenAPIURI ?? "http://sbplanet.co/forums/api.php");
 
 			// REQUEST: api.php?action=authenticate&username=USERNAME&password=PASSWORD
 			sb.Append("?action=authenticate");
 			if (String.IsNullOrEmpty(c.Username))
+			{
+				#region DEBUG
+#if DEBUG
+				TShock.Log.ConsoleInfo("AUTH ERROR: {Username} was null");
+#endif
+				#endregion
 				return LMReturnCode.EmptyParameter;
+			}
 			sb.Append("&username=" + c.Username);
 			if (String.IsNullOrEmpty(c.Password))
+			{
+				#region DEBUG
+#if DEBUG
+				TShock.Log.ConsoleInfo("AUTH ERROR: {Password} was null");
+#endif
+				#endregion
 				return LMReturnCode.EmptyParameter;
+			}
 			sb.Append("&password=" + c.Password);
 
+			#region DEBUG
 #if DEBUG
 			TShock.Log.ConsoleInfo("REQUESTING: " + sb.ToString());
 #endif
-			string response = await client.DownloadStringTaskAsync(sb.ToString());
+			#endregion
+			string response = "";
+			try
+			{
+				response = await client.DownloadStringTaskAsync(sb.ToString());
+			}
+			catch (WebException e)
+			{
+				using (WebResponse r = e.Response)
+				{
+					HttpWebResponse webr = (HttpWebResponse)r;
+					using (Stream data = r.GetResponseStream())
+					{
+						using (var reader = new StreamReader(data))
+						{
+							response = reader.ReadToEnd();
+						}
+					}
+				}
+			}
+
+			#region DEBUG
 #if DEBUG
 			TShock.Log.ConsoleInfo("RESPONSE: " + response);
 #endif
-			var dict = JsonConvert.DeserializeObject<Dictionary<string, string>>(response);
+			#endregion
+			var dict = JsonConvert.DeserializeObject<Dictionary<string, object>>(response);
 			if (dict.ContainsKey("hash"))
 			{
 				// Store the hash and perform a second query to get the userID
-				string hash = dict["hash"];
+				string hash = (string)dict["hash"];
 				sb.Clear();
 				sb.Append(CTRS.Config.Xenforo.XenAPIURI ?? "http://sbplanet.co/forums/api.php");
 
@@ -136,22 +181,44 @@ namespace CTRSystem
 				sb.Append(':');
 				sb.Append(hash);
 
+				#region DEBUG
 #if DEBUG
 				TShock.Log.ConsoleInfo("REQUESTING: " + sb.ToString());
 #endif
-				response = await client.DownloadStringTaskAsync(sb.ToString());
+				#endregion
+				try
+				{
+					response = await client.DownloadStringTaskAsync(sb.ToString());
+				}
+				catch (WebException e)
+				{
+					using (WebResponse r = e.Response)
+					{
+						HttpWebResponse webr = (HttpWebResponse)r;
+						using (Stream data = r.GetResponseStream())
+						{
+							using (var reader = new StreamReader(data))
+							{
+								response = reader.ReadToEnd();
+							}
+						}
+					}
+				}
+
+				#region DEBUG
 #if DEBUG
 				TShock.Log.ConsoleInfo("RESPONSE: " + response);
 #endif
-				dict = JsonConvert.DeserializeObject<Dictionary<string, string>>(response);
+				#endregion
+				dict = JsonConvert.DeserializeObject<Dictionary<string, object>>(response);
 				if (!dict.ContainsKey("user_id"))
 					return LMReturnCode.UserNotFound;
 				else
 				{
-					contributor.XenforoID = Int32.Parse(dict["user_id"]);
+					contributor.XenforoID = Convert.ToInt32((long)dict["user_id"]);
 					if (await CTRS.Contributors.UpdateAsync(contributor, ContributorUpdates.XenforoID))
 					{
-						RemovePlayer(c.ID);
+						RemovePlayer(contributor.UserID.Value);
 						return LMReturnCode.Success;
 					}
 					else
@@ -159,26 +226,14 @@ namespace CTRSystem
 				}
 			}
 			else
-				return (LMReturnCode)Int32.Parse(dict["error"]);
+				return (LMReturnCode)Convert.ToInt32((long)dict["error"]);
 		}
 	}
 
 	public class Credentials
 	{
-		public int ID { get; set; }
-
 		public string Username { get; set; }
 
 		public string Password { get; set; }
-
-		public Credentials()
-		{
-
-		}
-
-		public Credentials(int userID) : this()
-		{
-			ID = userID;
-		}
 	}
 }

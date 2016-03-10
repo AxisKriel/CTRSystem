@@ -21,8 +21,8 @@ using Texts = CTRSystem.Configuration.Texts;
 
 /*
 TODO LIST:
-	Properly implement synchronous permission checks (OnPlayerPermission), as async just gets dismissed [ ]
-	Make chat synchronous (as otherwise it won't work)													[ ]
+	Properly implement synchronous permissions (half-done, check if it works)							[x]
+	Figure out why chat still doesn't work																[ ]
 	Finish base Texts (Introduction, info) and test Info command										[ ]
 	...
 */
@@ -59,6 +59,7 @@ namespace CTRSystem
 		{
 			lastRefresh = DateTime.Now;
 			lastNotification = DateTime.Now;
+			Order = 20001;
 		}
 
 		public static Config Config { get; private set; }
@@ -118,7 +119,7 @@ namespace CTRSystem
 				SEconomyPlugin.SEconomyUnloaded += SEconomyUnloaded;
 
 				// Initial hooking, as SEconomyLoaded has already been called
-				SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += SEconomyBankTransactionPending;
+				SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += MultiplyExp;
 			}
 		}
 
@@ -229,18 +230,8 @@ namespace CTRSystem
 				if (con == null)
 					return;
 
-				Tier tier;
-				try
-				{
-					tier = Tiers.GetByCreditsAsync(con.TotalCredits).Result;
-				}
-				catch (TierManager.TierNotFoundException)
-				{
-#if DEBUG
-					TShock.Log.ConsoleError("OnChat: Tier fetching didn't return any tier");
-#endif
-					return;
-				}
+				// Why are we hardcoding tiers if we're then fetching it here by totalcredits every time?
+				Tier tier = Tiers.GetByCredits(con.TotalCredits);
 
 				/* Contributor chat format:
 					{0} - group name
@@ -364,7 +355,7 @@ namespace CTRSystem
 				return;
 
 			//Contributor con = await Contributors.GetAsync(e.Player.User.ID);
-			Contributor con = Contributors.GetAsync(e.Player.User.ID).Result;
+			Contributor con = Contributors.Get(e.Player.User.ID);
 			if (con == null)
 				return;
 
@@ -374,12 +365,14 @@ namespace CTRSystem
 			Task.Run(() => Tiers.UpgradeTier(con));
 
 			//Tier tier = await Tiers.GetAsync(con.Tier);
-			Tier tier = Tiers.GetAsync(con.Tier).Result;
+			Tier tier = Tiers.Get(con.Tier);
 			e.Handled = tier.Permissions.HasPermission(e.Permission);
+			#region DEBUG
 #if DEBUG
 			if (e.Handled)
 				TShock.Log.ConsoleInfo("OnPlayerPermission: Contributor had the permission");
 #endif
+			#endregion
 		}
 
 		void OnReload(ReloadEventArgs e)
@@ -398,15 +391,48 @@ namespace CTRSystem
 
 		void SEconomyLoaded(object sender, EventArgs e)
 		{
-			SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += SEconomyBankTransactionPending;
+			SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += MultiplyExp;
 		}
 
 		void SEconomyUnloaded(object sender, EventArgs e)
 		{
-			SEconomyPlugin.Instance.RunningJournal.BankTransactionPending -= SEconomyBankTransactionPending;
+			SEconomyPlugin.Instance.RunningJournal.BankTransactionPending -= MultiplyExp;
 		}
 
-		async void SEconomyBankTransactionPending(object sender, PendingTransactionEventArgs e)
+		void MultiplyExp(object sender, PendingTransactionEventArgs e)
+		{
+			// Should only work with system accounts as this will also make the sender pay more currency
+			if (SEconomyPlugin.Instance != null && e.ToAccount != null && e.FromAccount != null && e.FromAccount.IsSystemAccount)
+			{
+				// Find the tshock user
+				var user = TShock.Users.GetUserByName(e.ToAccount.UserAccountName);
+				if (user == null)
+					return;
+
+				Contributor con = Contributors.Get(user.ID);
+				if (con == null)
+					return;
+
+				// Get the tier, find the experience multiplier
+				Tier tier = Tiers.Get(con.Tier);
+				if (tier == null)
+				{
+					TShock.Log.ConsoleError($"CTRS: contributor {con.UserID.Value} has an invalid tier ID! ({con.Tier})");
+					return;
+				}
+
+				// If TierUpdate is true, perform the update
+				Task.Run(() => Tiers.UpgradeTier(con));
+
+				if (tier.ExperienceMultiplier != 1f)
+				{
+					// Multiply the amount of currency gained by the experience multiplier
+					e.Amount = new Money(Convert.ToInt64(e.Amount.Value * tier.ExperienceMultiplier));
+				}
+			}
+		}
+
+		async void MultiplyExpAsync(object sender, PendingTransactionEventArgs e)
 		{
 			// Should only work with system accounts as this will also make the sender pay more currency
 			if (SEconomyPlugin.Instance != null && e.ToAccount != null && e.FromAccount != null && e.FromAccount.IsSystemAccount)

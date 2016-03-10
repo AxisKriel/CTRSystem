@@ -49,6 +49,15 @@ namespace CTRSystem.DB
 			});
 		}
 
+		public Task<bool> SetTShockID(int userID, int tshockID)
+		{
+			return Task.Run(() =>
+			{
+				string query = "UPDATE xf_user SET tshock_id = @1 WHERE user_id = @0;";
+				return (db.Query(query, userID, tshockID) == 1);
+			});
+		}
+
 		public async Task<float> GetContributorCredits(Contributor contributor)
 		{
 			// Only works if the contributor has linked their Xenforo account to their TShock account

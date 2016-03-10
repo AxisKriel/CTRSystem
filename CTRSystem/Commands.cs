@@ -90,13 +90,27 @@ namespace CTRSystem
 				Credentials cred = CTRS.CredentialHelper.Get(args.Player);
 				if (cred == null)
 					CTRS.CredentialHelper.AddPlayer(args.Player);
-				CTRS.CredentialHelper.Update(args.Player, username, password);
 
+				bool update = CTRS.CredentialHelper.Update(args.Player, username, password);
+				#region DEBUG
+#if DEBUG
+				TShock.Log.ConsoleInfo("AUTH UPDATE: " + update.ToString());
+#endif
+				#endregion
 				LMReturnCode response = await CTRS.CredentialHelper.Authenticate(args.Player, contributor);
 				switch (response)
 				{
 					case LMReturnCode.Success:
-						args.Player.SendSuccessMessage($"{Tag} You are now authenticated for the forum account '{username}'.");
+						bool success = await CTRS.XenforoUsers.SetTShockID(contributor.XenforoID.Value, contributor.UserID.Value);
+						#region DEBUG
+#if DEBUG
+						TShock.Log.ConsoleInfo($"CTRS-AUTH: Set TShockID for Contributor {contributor.UserID.Value}? {success}");
+#endif
+						#endregion
+						if (success)
+							args.Player.SendSuccessMessage($"{Tag} You are now authenticated for the forum account '{username}'.");
+						else
+							goto case LMReturnCode.DatabaseError;
 						break;
 					case LMReturnCode.EmptyParameter:
 					case LMReturnCode.InsuficientParameters:

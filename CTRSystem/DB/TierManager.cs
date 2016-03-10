@@ -40,6 +40,11 @@ namespace CTRSystem.DB
 			}
 		}
 
+		public Tier Get(int id)
+		{
+			return _cache.Find(t => t.ID == id);
+		}
+
 		public Task<Tier> GetAsync(int id)
 		{
 			return Task.Run(() =>
@@ -106,11 +111,16 @@ namespace CTRSystem.DB
 			});
 		}
 
+		public Tier GetByCredits(float totalcredits)
+		{
+			return _cache.FindAll(t => t.CreditsRequired <= totalcredits).OrderBy(t => t.CreditsRequired).LastOrDefault();
+		}
+
 		public Task<Tier> GetByCreditsAsync(float totalcredits)
 		{
 			return Task.Run(() =>
 			{
-				string query = "SELECT * FROM Tiers WHERE CreditsRequired >= @0 ORDER BY CreditsRequired LIMIT 1;";
+				string query = "SELECT * FROM Tiers WHERE CreditsRequired <= @0 ORDER BY CreditsRequired DESC LIMIT 1;";
 				using (var result = db.QueryReader(query, totalcredits))
 				{
 					if (result.Read())
@@ -187,12 +197,15 @@ namespace CTRSystem.DB
 				return;
 
 			List<Tier> tiers = await GetAllAsync();
-			for (int i = 0; i < _cache.Count; i++)
+			lock (_cache)
 			{
-				if (!tiers.Contains(_cache[i]))
-					_cache.RemoveAt(i);
-				else
-					_cache[i] = tiers.Find(t => t.ID == _cache[i].ID);
+				for (int i = 0; i < _cache.Count; i++)
+				{
+					if (!tiers.Contains(_cache[i]))
+						_cache.RemoveAt(i);
+					else
+						_cache[i] = tiers.Find(t => t.ID == _cache[i].ID);
+				}
 			}
 		}
 

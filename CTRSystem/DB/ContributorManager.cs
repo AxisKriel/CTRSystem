@@ -276,23 +276,26 @@ namespace CTRSystem.DB
 					updatesList.Add("Settings = @7");
 
 				string query = $"UPDATE Contributors SET {String.Join(", ", updatesList)} WHERE UserID = @0;";
-				lock (syncLock)
+				lock (_cache)
 				{
-					if (db.Query(query, contributor.UserID,
-						contributor.XenforoID,
-						contributor.TotalCredits,
-						contributor.LastDonation.ToUnixTime(),
-						contributor.Tier,
-						Tools.ColorToRGB(contributor.ChatColor),
-						(int)contributor.Notifications,
-						(int)contributor.Settings) == 1)
+					lock (syncLock)
 					{
-						_cache.RemoveAll(c => c.UserID.HasValue && c.UserID.Value == contributor.UserID.Value);
-						_cache.Add(contributor);
-						return true;
+						if (db.Query(query, contributor.UserID,
+							contributor.XenforoID,
+							contributor.TotalCredits,
+							contributor.LastDonation.ToUnixTime(),
+							contributor.Tier,
+							Tools.ColorToRGB(contributor.ChatColor),
+							(int)contributor.Notifications,
+							(int)contributor.Settings) == 1)
+						{
+							_cache.RemoveAll(c => c.UserID.HasValue && c.UserID.Value == contributor.UserID.Value);
+							_cache.Add(contributor);
+							return true;
+						}
+						else
+							return false;
 					}
-					else
-						return false;
 				}
 			});
 		}
