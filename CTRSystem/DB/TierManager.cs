@@ -38,6 +38,9 @@ namespace CTRSystem.DB
 			{
 				TShock.Log.ConsoleInfo("CTRS: created table 'Tiers'");
 			}
+
+			// Load all tiers to the cache
+			Task.Run(async () => _cache = await GetAllAsync());
 		}
 
 		public Tier Get(int id)

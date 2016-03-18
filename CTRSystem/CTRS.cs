@@ -21,8 +21,8 @@ using Texts = CTRSystem.Configuration.Texts;
 
 /*
 TODO LIST:
-	Properly implement synchronous permissions (half-done, check if it works)							[x]
-	Figure out why chat still doesn't work																[ ]
+	Properly implement synchronous permissions															[x]
+	Figure out why chat still doesn't work																[x]
 	Finish base Texts (Introduction, info) and test Info command										[ ]
 	...
 */
@@ -87,11 +87,11 @@ namespace CTRSystem
 				GeneralHooks.ReloadEvent -= OnReload;
 				PlayerHooks.PlayerLogout -= OnLogout;
 				PlayerHooks.PlayerPermission -= OnPlayerPermission;
+				PlayerHooks.PlayerPostLogin -= OnLogin;
 				ServerApi.Hooks.GameInitialize.Deregister(this, OnInitialize);
 				ServerApi.Hooks.GameUpdate.Deregister(this, UpdateTiers);
 				ServerApi.Hooks.GameUpdate.Deregister(this, UpdateNotifications);
-				//ServerApi.Hooks.ServerChat.Deregister(this, OnChat);
-				ServerApi.Hooks.ServerChat.Deregister(this, OnChatSync);
+				ServerApi.Hooks.ServerChat.Deregister(this, OnChat);
 
 				if (SEconomyPlugin.Instance != null)
 				{
@@ -107,11 +107,11 @@ namespace CTRSystem
 			GeneralHooks.ReloadEvent += OnReload;
 			PlayerHooks.PlayerLogout += OnLogout;
 			PlayerHooks.PlayerPermission += OnPlayerPermission;
+			PlayerHooks.PlayerPostLogin += OnLogin;
 			ServerApi.Hooks.GameInitialize.Register(this, OnInitialize);
 			ServerApi.Hooks.GameUpdate.Register(this, UpdateTiers);
 			ServerApi.Hooks.GameUpdate.Register(this, UpdateNotifications);
-			//ServerApi.Hooks.ServerChat.Register(this, OnChat);
-			ServerApi.Hooks.ServerChat.Register(this, OnChatSync);
+			ServerApi.Hooks.ServerChat.Register(this, OnChat);
 
 			if (SEconomyPlugin.Instance != null)
 			{
@@ -119,92 +119,94 @@ namespace CTRSystem
 				SEconomyPlugin.SEconomyUnloaded += SEconomyUnloaded;
 
 				// Initial hooking, as SEconomyLoaded has already been called
-				SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += MultiplyExp;
+				SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += MultiplyExpAsync;
 			}
 		}
 
-		async void OnChat(ServerChatEventArgs e)
+		#region Chat Async
+		//		async void OnChat(ServerChatEventArgs e)
+		//		{
+		//			if (e.Handled)
+		//				return;
+
+		//			// A quick check to reduce DB work when this feature isn't in use
+		//			if (String.IsNullOrWhiteSpace(Config.ContributorChatFormat) || Config.ContributorChatFormat == TShock.Config.ChatFormat)
+		//				return;
+
+		//			var player = TShock.Players[e.Who];
+		//			if (player == null)
+		//				return;
+
+		//			if (e.Text.Length > 500)
+		//				return;
+
+		//			// If true, the message is a command, so we skip it
+		//			if ((e.Text.StartsWith(TShockAPI.Commands.Specifier) || e.Text.StartsWith(TShockAPI.Commands.SilentSpecifier))
+		//				&& !String.IsNullOrWhiteSpace(e.Text.Substring(1)))
+		//				return;
+
+		//			// Player needs to be able to talk, not be muted, and must be logged in
+		//			if (!player.HasPermission(TShockAPI.Permissions.canchat) || player.mute || !player.IsLoggedIn)
+		//				return;
+
+		//			// At this point, ChatAboveHeads is not supported, but it could be a thing in the future
+		//			if (!TShock.Config.EnableChatAboveHeads)
+		//			{
+		//				Contributor con = await Contributors.GetAsync(player.User.ID);
+		//				if (con == null)
+		//					return;
+
+		//				Tier tier;
+		//				try
+		//				{
+		//					tier = await Tiers.GetByCreditsAsync(con.TotalCredits);
+		//				}
+		//				catch (TierManager.TierNotFoundException)
+		//				{
+		//#if DEBUG
+		//					TShock.Log.ConsoleError("OnChat: Tier fetching didn't return any tier");
+		//#endif
+		//					return;
+		//				}
+
+		//				/* Contributor chat format:
+		//					{0} - group name
+		//					{1} - group prefix
+		//					{2} - player name
+		//					{3} - group suffix
+		//					{4} - message text
+		//					{5} - tier shortname
+		//					{6} - tier name
+		//					{7} - webID
+
+		//				 */
+		//				var text = String.Format(Config.ContributorChatFormat, player.Group.Name, player.Group.Prefix, player.Name,
+		//					player.Group.Suffix, e.Text, tier.ShortName ?? "", tier.Name ?? "", con.XenforoID ?? -1);
+		//				PlayerHooks.OnPlayerChat(player, e.Text, ref text);
+		//				Color? color = con.ChatColor;
+		//				if (!color.HasValue)
+		//				{
+		//#if DEBUG
+		//					TShock.Log.ConsoleInfo("OnChat: Color was null");
+		//#endif
+		//					color = new Color(player.Group.R, player.Group.G, player.Group.B);
+		//				}
+		//				TShock.Utils.Broadcast(text, color.Value.R, color.Value.G, color.Value.B);
+		//#if DEBUG
+		//				TShock.Log.ConsoleInfo("OnChat: Contributor was handled by CTRS");
+		//#endif
+		//				e.Handled = true;
+		//			}
+		//		}
+		#endregion
+
+		void OnChat(ServerChatEventArgs e)
 		{
 			if (e.Handled)
 				return;
 
 			// A quick check to reduce DB work when this feature isn't in use
-			if (String.IsNullOrWhiteSpace(Config.ContributorChatFormat) || Config.ContributorChatFormat == TShock.Config.ChatFormat)
-				return;
-
-			var player = TShock.Players[e.Who];
-			if (player == null)
-				return;
-
-			if (e.Text.Length > 500)
-				return;
-
-			// If true, the message is a command, so we skip it
-			if ((e.Text.StartsWith(TShockAPI.Commands.Specifier) || e.Text.StartsWith(TShockAPI.Commands.SilentSpecifier))
-				&& !String.IsNullOrWhiteSpace(e.Text.Substring(1)))
-				return;
-
-			// Player needs to be able to talk, not be muted, and must be logged in
-			if (!player.HasPermission(TShockAPI.Permissions.canchat) || player.mute || !player.IsLoggedIn)
-				return;
-
-			// At this point, ChatAboveHeads is not supported, but it could be a thing in the future
-			if (!TShock.Config.EnableChatAboveHeads)
-			{
-				Contributor con = await Contributors.GetAsync(player.User.ID);
-				if (con == null)
-					return;
-
-				Tier tier;
-				try
-				{
-					tier = await Tiers.GetByCreditsAsync(con.TotalCredits);
-				}
-				catch (TierManager.TierNotFoundException)
-				{
-#if DEBUG
-					TShock.Log.ConsoleError("OnChat: Tier fetching didn't return any tier");
-#endif
-					return;
-				}
-
-				/* Contributor chat format:
-					{0} - group name
-					{1} - group prefix
-					{2} - player name
-					{3} - group suffix
-					{4} - message text
-					{5} - tier shortname
-					{6} - tier name
-					{7} - webID
-
-				 */
-				var text = String.Format(Config.ContributorChatFormat, player.Group.Name, player.Group.Prefix, player.Name,
-					player.Group.Suffix, e.Text, tier.ShortName ?? "", tier.Name ?? "", con.XenforoID ?? -1);
-				PlayerHooks.OnPlayerChat(player, e.Text, ref text);
-				Color? color = con.ChatColor;
-				if (!color.HasValue)
-				{
-#if DEBUG
-					TShock.Log.ConsoleInfo("OnChat: Color was null");
-#endif
-					color = new Color(player.Group.R, player.Group.G, player.Group.B);
-				}
-				TShock.Utils.Broadcast(text, color.Value.R, color.Value.G, color.Value.B);
-#if DEBUG
-				TShock.Log.ConsoleInfo("OnChat: Contributor was handled by CTRS");
-#endif
-				e.Handled = true;
-			}
-		}
-
-		void OnChatSync(ServerChatEventArgs e)
-		{
-			if (e.Handled)
-				return;
-
-			// A quick check to reduce DB work when this feature isn't in use
-			if (String.IsNullOrWhiteSpace(Config.ContributorChatFormat) || Config.ContributorChatFormat == TShock.Config.ChatFormat)
+			if (String.IsNullOrWhiteSpace(Config.ContributorChatFormat))
 				return;
 
 			var player = TShock.Players[e.Who];
@@ -230,8 +232,9 @@ namespace CTRSystem
 				if (con == null)
 					return;
 
-				// Why are we hardcoding tiers if we're then fetching it here by totalcredits every time?
-				Tier tier = Tiers.GetByCredits(con.TotalCredits);
+				// Why are we hardcoding tiers if we're then fetching it here by totalcredits every time? (no longer force-fetching)
+				//Tier tier = Tiers.GetByCredits(con.TotalCredits);
+				Tier tier = Tiers.Get(con.Tier);
 
 				/* Contributor chat format:
 					{0} - group name
@@ -250,15 +253,25 @@ namespace CTRSystem
 				Color? color = con.ChatColor;
 				if (!color.HasValue)
 				{
+					#region DEBUG
 #if DEBUG
-					TShock.Log.ConsoleInfo("OnChat: Color was null");
+					TShock.Log.ConsoleInfo("OnChat: Contributor color was null");
 #endif
-					color = new Color(player.Group.R, player.Group.G, player.Group.B);
+					#endregion
+					// If the contributor doesn't have a custom chat color, check their tier
+					color = tier.ChatColor;
+					if (!color.HasValue)
+					{
+						// As neither the tier nor the contributor have a custom chat color, use the group's default
+						color = new Color(player.Group.R, player.Group.G, player.Group.B);
+					}
 				}
 				TShock.Utils.Broadcast(text, color.Value.R, color.Value.G, color.Value.B);
+				#region
 #if DEBUG
 				TShock.Log.ConsoleInfo("OnChat: Contributor was handled by CTRS");
 #endif
+				#endregion
 				e.Handled = true;
 			}
 		}
@@ -334,6 +347,19 @@ namespace CTRSystem
 			XenforoUsers = new XenforoManager(xfdb);
 		}
 
+		async void OnLogin(PlayerPostLoginEventArgs e)
+		{
+			try
+			{
+				// Fetches the contributor from the cache (if possible), syncing with the db in case its sync state is false
+				await Contributors.GetAsync(e.Player.User.ID);
+			}
+			catch
+			{
+				// Catch any exception that is thrown here to prevent pointless error messages
+			}
+		}
+
 		void OnLogout(PlayerLogoutEventArgs e)
 		{
 			try
@@ -351,7 +377,7 @@ namespace CTRSystem
 		void OnPlayerPermission(PlayerPermissionEventArgs e)
 		{
 			// If the player isn't logged it, he's certainly not a contributor
-			if (!e.Player.IsLoggedIn || e.Player.User == null)
+			if (e.Player == null || !e.Player.IsLoggedIn || e.Player.User == null)
 				return;
 
 			//Contributor con = await Contributors.GetAsync(e.Player.User.ID);
@@ -359,10 +385,11 @@ namespace CTRSystem
 			if (con == null)
 				return;
 
-			// Check if a Tier Update is pending, and if it is, perform it before anything else
-			// NOTE: If this occurs, there is a good chance that a delay will be noticeable
-			//await Tiers.UpgradeTier(con);
-			Task.Run(() => Tiers.UpgradeTier(con));
+			#region DEBUG
+#if DEBUG
+			//TShock.Log.ConsoleInfo("[" + e.Player.Index + "] Checking permission for: " + e.Permission);
+#endif
+			#endregion
 
 			//Tier tier = await Tiers.GetAsync(con.Tier);
 			Tier tier = Tiers.Get(con.Tier);
@@ -391,45 +418,12 @@ namespace CTRSystem
 
 		void SEconomyLoaded(object sender, EventArgs e)
 		{
-			SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += MultiplyExp;
+			SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += MultiplyExpAsync;
 		}
 
 		void SEconomyUnloaded(object sender, EventArgs e)
 		{
-			SEconomyPlugin.Instance.RunningJournal.BankTransactionPending -= MultiplyExp;
-		}
-
-		void MultiplyExp(object sender, PendingTransactionEventArgs e)
-		{
-			// Should only work with system accounts as this will also make the sender pay more currency
-			if (SEconomyPlugin.Instance != null && e.ToAccount != null && e.FromAccount != null && e.FromAccount.IsSystemAccount)
-			{
-				// Find the tshock user
-				var user = TShock.Users.GetUserByName(e.ToAccount.UserAccountName);
-				if (user == null)
-					return;
-
-				Contributor con = Contributors.Get(user.ID);
-				if (con == null)
-					return;
-
-				// Get the tier, find the experience multiplier
-				Tier tier = Tiers.Get(con.Tier);
-				if (tier == null)
-				{
-					TShock.Log.ConsoleError($"CTRS: contributor {con.UserID.Value} has an invalid tier ID! ({con.Tier})");
-					return;
-				}
-
-				// If TierUpdate is true, perform the update
-				Task.Run(() => Tiers.UpgradeTier(con));
-
-				if (tier.ExperienceMultiplier != 1f)
-				{
-					// Multiply the amount of currency gained by the experience multiplier
-					e.Amount = new Money(Convert.ToInt64(e.Amount.Value * tier.ExperienceMultiplier));
-				}
-			}
+			SEconomyPlugin.Instance.RunningJournal.BankTransactionPending -= MultiplyExpAsync;
 		}
 
 		async void MultiplyExpAsync(object sender, PendingTransactionEventArgs e)
@@ -442,7 +436,9 @@ namespace CTRSystem
 				if (user == null)
 					return;
 
-				Contributor con = await Contributors.GetAsync(user.ID);
+				// Shouldn't have to do the db-check due to the on-login one
+				//Contributor con = await Contributors.GetAsync(user.ID);
+				Contributor con = Contributors.Get(user.ID);
 				if (con == null)
 					return;
 
@@ -455,7 +451,8 @@ namespace CTRSystem
 				}
 
 				// If TierUpdate is true, perform the update
-				await Tiers.UpgradeTier(con);
+				// TODO: Just like on Player Permission, might be better to scrap those and just do a generalized check every x seconds
+				//await Tiers.UpgradeTier(con);
 
 				if (tier.ExperienceMultiplier != 1f)
 				{
@@ -474,11 +471,13 @@ namespace CTRSystem
 				lastNotification = DateTime.Now;
 				foreach (TSPlayer player in TShock.Players.Where(p => p != null && p.Active && p.IsLoggedIn && p.User != null))
 				{
-					Contributor con = await Contributors.GetAsync(player.User.ID);
+					//Contributor con = await Contributors.GetAsync(player.User.ID);
+					Contributor con = Contributors.Get(player.User.ID);
 					if (con == null)
 						return;
 
 					ContributorUpdates updates = 0;
+					// Seeing as the tier is upgraded here, consider removing the other upgrade sources as this should be often enough
 					await Tiers.UpgradeTier(con);
 
 					if ((con.Notifications & Notifications.Introduction) != Notifications.Introduction)

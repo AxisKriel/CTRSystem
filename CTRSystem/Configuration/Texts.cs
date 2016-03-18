@@ -26,7 +26,7 @@ namespace CTRSystem.Configuration
 			return lines.ToList();
 		}
 
-		public string Introduction = "";
+		public string Introduction = "Welcome, @player! Thank you for contributing!";
 
 		public string Info = "You currently have {2}";
 
@@ -34,29 +34,32 @@ namespace CTRSystem.Configuration
 
 		public string NewDonation = "";
 
-		public string FormatIntroduction(TSPlayer player)
+		public string FormatIntroduction(TSPlayer player, Contributor contributor)
 		{
-			return String.Format(Introduction);
+			return String.Format(Introduction,
+				player.Name);
 		}
 
 		/// <summary>
 		/// Formats the info message sent to players when they use the info command.
-		/// {0} - UserID
-		/// {1} - WebID
-		/// {2} - Credits
-		/// {3} - TotalCredits
-		/// {4} - LastDonation (dd-MMM-yyyy)
-		/// {5} - Tier.Name with ChatColor
-		/// {6} - NextTier.Name
-		/// {7} - CreditsForNextTier
-		/// {8} - ChatColor
+		/// {0} - Player Name
+		/// {1} - UserID
+		/// {2} - WebID
+		/// {3} - Credits
+		/// {4} - TotalCredits
+		/// {5} - LastDonation (dd-MMM-yyyy)
+		/// {6} - Tier.Name with ChatColor
+		/// {7} - NextTier.Name
+		/// {8} - CreditsForNextTier
+		/// {9} - ChatColor
 		/// </summary>
 		/// <param name="player">The contributor to take elements from.</param>
 		/// <returns>The formatted string.</returns>
-		public string FormatInfo(Contributor contributor, float credits, Tier tier = null, Tier nextTier = null)
+		public string FormatInfo(TSPlayer player, Contributor contributor, float credits, Tier tier = null, Tier nextTier = null)
 		{
 
 			return String.Format(Info,
+				player.Name,
 				contributor.UserID.HasValue ? contributor.UserID.Value.ToString() : "N/A",
 				contributor.XenforoID.HasValue ? contributor.XenforoID.Value.ToString() : "N/A",
 				String.Format(CTRS.Config.CreditsFormat, credits),
@@ -68,12 +71,12 @@ namespace CTRSystem.Configuration
 				Tools.ColorToRGB(contributor.ChatColor));
 		}
 
-		public string FormatNewTier(TSPlayer player)
+		public string FormatNewTier(TSPlayer player, Contributor contributor, Tier tier)
 		{
 			return String.Format(NewTier);
 		}
 
-		public string FormatNewDonation(TSPlayer player)
+		public string FormatNewDonation(TSPlayer player, Contributor contributor, float amount)
 		{
 			return String.Format(NewDonation);
 		}

@@ -165,7 +165,7 @@ namespace CTRSystem
 				}
 
 				XFUser xfuser;
-				if (con.XenforoID == null || (xfuser = await CTRS.XenforoUsers.GetAsync(args.Player.User.ID)) == null)
+				if (!con.XenforoID.HasValue || (xfuser = await CTRS.XenforoUsers.GetAsync(args.Player.User.ID)) == null)
 				{
 					args.Player.SendInfoMessage($"{Tag} Oops! It seems you're yet to authenticate to a valid forum account.");
 					args.Player.SendInfoMessage($"{Tag} Use the {spe}auth <username> <password> command to authenticate first.");
@@ -174,7 +174,7 @@ namespace CTRSystem
 
 				// Finish this info message and then proceed with tests
 				args.Player.SendMessage($"{Tag} Contributions Track & Reward System v{CTRS.PublicVersion}", Color.LightGreen);
-				foreach (string s in Texts.SplitIntoLines(CTRS.Config.Texts.FormatInfo(con, xfuser.Credits, tier, nextTier)))
+				foreach (string s in Texts.SplitIntoLines(CTRS.Config.Texts.FormatInfo(args.Player, con, xfuser.Credits, tier, nextTier)))
 				{
 					args.Player.SendInfoMessage($"{Tag} {s}");
 				}
