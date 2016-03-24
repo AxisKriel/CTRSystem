@@ -9,14 +9,15 @@ namespace CTRSystem.DB
 	[Flags]
 	public enum ContributorUpdates
 	{
-		None,
-		XenforoID,
-		TotalCredits,
-		LastDonation,
-		Tier,
-		ChatColor,
-		Notifications,
-		Settings
+		None = 0,
+		XenforoID = 1,
+		TotalCredits = 2,
+		LastDonation = 4,
+		LastAmount = 8,
+		Tier = 16,
+		ChatColor = 32,
+		Notifications = 64,
+		Settings = 128
 	}
 
 	[Flags]

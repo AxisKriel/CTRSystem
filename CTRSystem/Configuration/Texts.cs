@@ -26,14 +26,15 @@ namespace CTRSystem.Configuration
 			return lines.ToList();
 		}
 
-		public string Introduction = "Welcome, @player! Thank you for contributing!";
+		public string Introduction = "Thank you for contributing to Saybrook's Planet! Enjoy your new perks as you join the Contributors!";
 
-		public string Info = "You currently have {2}";
+		public string Info = "You currently have {3}. You are a {6} Contributor, contributing with a total of {4} over your lifespan.";
 
-		public string NewTier = "";
+		public string NewTier = "Congratulations! You have advanced to the {1} Contributor rank and have increased your experience multiplier!";
 
-		public string NewDonation = "";
+		public string NewDonation = "Welcome back to Saybrook's Planet! We've just received a contribution of {1} that was applied to your account!";
 
+		// 0 - player name
 		public string FormatIntroduction(TSPlayer player, Contributor contributor)
 		{
 			return String.Format(Introduction,
@@ -62,23 +63,25 @@ namespace CTRSystem.Configuration
 				player.Name,
 				contributor.UserID.HasValue ? contributor.UserID.Value.ToString() : "N/A",
 				contributor.XenforoID.HasValue ? contributor.XenforoID.Value.ToString() : "N/A",
-				String.Format(CTRS.Config.CreditsFormat, credits),
-				String.Format(CTRS.Config.CreditsFormat, contributor.TotalCredits),
+				String.Format(CTRS.Config.CreditsFormat, (int)credits),
+				String.Format(CTRS.Config.CreditsFormat, (int)contributor.TotalCredits),
 				contributor.LastDonation == DateTime.MinValue ? "N/A" : contributor.LastDonation.ToString("d-MMM-yyyy"),
 				tier != null ? tier.ChatColor.HasValue ? TShock.Utils.ColorTag(tier.Name, tier.ChatColor.Value) : tier.Name : "N/A",
 				nextTier != null ? nextTier.ChatColor.HasValue ? TShock.Utils.ColorTag(nextTier.Name, nextTier.ChatColor.Value) : nextTier.Name : "N/A",
-				(nextTier != null && tier != null) ? (nextTier.CreditsRequired - credits).ToString() : "N/A",
+				String.Format(CTRS.Config.CreditsFormat, (nextTier != null && tier != null) ? ((int)(nextTier.CreditsRequired - credits)).ToString() : "N/A"),
 				Tools.ColorToRGB(contributor.ChatColor));
 		}
 
+		// 0 - player name | 1 - Tier.Name with ChatColor
 		public string FormatNewTier(TSPlayer player, Contributor contributor, Tier tier)
 		{
-			return String.Format(NewTier);
+			return String.Format(NewTier, player.Name, tier.ChatColor.HasValue ? TShock.Utils.ColorTag(tier.Name, tier.ChatColor.Value) : tier.Name);
 		}
 
+		// 0 - player name | 1 - amount formatted to credits
 		public string FormatNewDonation(TSPlayer player, Contributor contributor, float amount)
 		{
-			return String.Format(NewDonation);
+			return String.Format(NewDonation, player.Name, String.Format(CTRS.Config.CreditsFormat, (int)amount));
 		}
 	}
 }

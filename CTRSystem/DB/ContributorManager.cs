@@ -34,6 +34,7 @@ namespace CTRSystem.DB
 				new SqlColumn("XenforoID", MySqlDbType.Int32) { Unique = true, DefaultValue = null },
 				new SqlColumn("TotalCredits", MySqlDbType.Float) { NotNull = true, DefaultValue = "0" },
 				new SqlColumn("LastDonation", MySqlDbType.Int64) { DefaultValue = null },
+				new SqlColumn("LastAmount", MySqlDbType.Float) { NotNull = true, DefaultValue = "0" },
 				new SqlColumn("Tier", MySqlDbType.Int32) { NotNull = true, DefaultValue = "1" },
 				new SqlColumn("ChatColor", MySqlDbType.Text) { NotNull = true, DefaultValue = "" },
 				new SqlColumn("Notifications", MySqlDbType.Int32) { NotNull = true, DefaultValue = "0" },
@@ -92,6 +93,7 @@ namespace CTRSystem.DB
 								//Credits = result.Get<int>("Credits"),
 								TotalCredits = result.Get<float>("TotalCredits"),
 								LastDonation = result.Get<long>("LastDonation").FromUnixTime(),
+								LastAmount = result.Get<float>("LastAmount"),
 								Tier = result.Get<int>("Tier"),
 								ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor")),
 								Notifications = (Notifications)result.Get<int>("Notifications"),
@@ -151,6 +153,7 @@ namespace CTRSystem.DB
 								//Credits = result.Get<int>("Credits"),
 								TotalCredits = result.Get<float>("TotalCredits"),
 								LastDonation = result.Get<long>("LastDonation").FromUnixTime(),
+								LastAmount = result.Get<float>("LastAmount"),
 								Tier = result.Get<int>("Tier"),
 								ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor")),
 								Notifications = (Notifications)result.Get<int>("Notifications"),
@@ -193,6 +196,7 @@ namespace CTRSystem.DB
 							//Credits = result.Get<int>("Credits"),
 							TotalCredits = result.Get<float>("TotalCredits"),
 							LastDonation = result.Get<long>("LastDonation").FromUnixTime(),
+							LastAmount = result.Get<float>("LastAmount"),
 							Tier = result.Get<int>("Tier"),
 							ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor")),
 							Notifications = (Notifications)result.Get<int>("Notifications"),
@@ -266,14 +270,16 @@ namespace CTRSystem.DB
 					updatesList.Add("TotalCredits = @2");
 				if ((updates & ContributorUpdates.LastDonation) == ContributorUpdates.LastDonation)
 					updatesList.Add("LastDonation = @3");
+				if ((updates & ContributorUpdates.LastAmount) == ContributorUpdates.LastAmount)
+					updatesList.Add("LastAmount = @4");
 				if ((updates & ContributorUpdates.Tier) == ContributorUpdates.Tier)
-					updatesList.Add("Tier = @4");
+					updatesList.Add("Tier = @5");
 				if ((updates & ContributorUpdates.ChatColor) == ContributorUpdates.ChatColor)
-					updatesList.Add("ChatColor = @5");
+					updatesList.Add("ChatColor = @6");
 				if ((updates & ContributorUpdates.Notifications) == ContributorUpdates.Notifications)
-					updatesList.Add("Notifications = @6");
+					updatesList.Add("Notifications = @7");
 				if ((updates & ContributorUpdates.Settings) == ContributorUpdates.Settings)
-					updatesList.Add("Settings = @7");
+					updatesList.Add("Settings = @8");
 
 				string query = $"UPDATE Contributors SET {String.Join(", ", updatesList)} WHERE UserID = @0;";
 				lock (_cache)
@@ -284,6 +290,7 @@ namespace CTRSystem.DB
 							contributor.XenforoID,
 							contributor.TotalCredits,
 							contributor.LastDonation.ToUnixTime(),
+							contributor.LastAmount,
 							contributor.Tier,
 							Tools.ColorToRGB(contributor.ChatColor),
 							(int)contributor.Notifications,

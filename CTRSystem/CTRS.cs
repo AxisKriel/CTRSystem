@@ -47,12 +47,17 @@ namespace CTRSystem
 
 		public override string Name
 		{
-			get { return "Contributions Track & Reward System"; }
+			get { return $"Contributions Track & Reward System ({SubVersion})"; }
 		}
 
 		public override Version Version
 		{
 			get { return Assembly.GetExecutingAssembly().GetName().Version; }
+		}
+
+		public string SubVersion
+		{
+			get { return "Info Tests"; }
 		}
 
 		public CTRS(Main game) : base(game)
@@ -477,13 +482,12 @@ namespace CTRSystem
 						return;
 
 					ContributorUpdates updates = 0;
-					// Seeing as the tier is upgraded here, consider removing the other upgrade sources as this should be often enough
 					await Tiers.UpgradeTier(con);
 
 					if ((con.Notifications & Notifications.Introduction) != Notifications.Introduction)
 					{
 						// Do Introduction message
-						foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatIntroduction(player)))
+						foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatIntroduction(player, con)))
 						{
 							player.SendInfoMessage(s);
 						}
@@ -493,7 +497,7 @@ namespace CTRSystem
 					else if ((con.Notifications & Notifications.NewDonation) == Notifications.NewDonation)
 					{
 						// Do NewDonation message
-						foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatNewDonation(player)))
+						foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatNewDonation(player, con, con.LastAmount)))
 						{
 							player.SendInfoMessage(s);
 						}
@@ -503,7 +507,7 @@ namespace CTRSystem
 					else if ((con.Notifications & Notifications.NewTier) == Notifications.NewTier)
 					{
 						// Do Tier Rank Up message
-						foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatNewTier(player)))
+						foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatNewTier(player, con, Tiers.Get(con.Tier))))
 						{
 							player.SendInfoMessage(s);
 						}
