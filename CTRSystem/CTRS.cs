@@ -6,10 +6,12 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using System.Timers;
 using CTRSystem.DB;
 using CTRSystem.Extensions;
 using Mono.Data.Sqlite;
 using MySql.Data.MySqlClient;
+using Rests;
 using Terraria;
 using TerrariaApi.Server;
 using TShockAPI;
@@ -23,7 +25,7 @@ using Texts = CTRSystem.Configuration.Texts;
 TODO LIST:
 	Properly implement synchronous permissions															[x]
 	Figure out why chat still doesn't work																[x]
-	Finish base Texts (Introduction, info) and test Info command										[ ]
+	Finish base Texts (Introduction, info) and test Info command										[x]
 	...
 */
 
@@ -57,7 +59,7 @@ namespace CTRSystem
 
 		public string SubVersion
 		{
-			get { return "Info Tests"; }
+			get { return "Working Notifications & REST Transaction"; }
 		}
 
 		public CTRS(Main game) : base(game)
@@ -77,6 +79,8 @@ namespace CTRSystem
 
 		public static TierManager Tiers { get; private set; }
 
+		public static Timer[] Timers { get; private set; }
+
 		public static XenforoManager XenforoUsers { get; private set; }
 
 		public static Version PublicVersion
@@ -95,7 +99,7 @@ namespace CTRSystem
 				PlayerHooks.PlayerPostLogin -= OnLogin;
 				ServerApi.Hooks.GameInitialize.Deregister(this, OnInitialize);
 				ServerApi.Hooks.GameUpdate.Deregister(this, UpdateTiers);
-				ServerApi.Hooks.GameUpdate.Deregister(this, UpdateNotifications);
+				//ServerApi.Hooks.GameUpdate.Deregister(this, UpdateNotifications);
 				ServerApi.Hooks.ServerChat.Deregister(this, OnChat);
 
 				if (SEconomyPlugin.Instance != null)
@@ -115,7 +119,7 @@ namespace CTRSystem
 			PlayerHooks.PlayerPostLogin += OnLogin;
 			ServerApi.Hooks.GameInitialize.Register(this, OnInitialize);
 			ServerApi.Hooks.GameUpdate.Register(this, UpdateTiers);
-			ServerApi.Hooks.GameUpdate.Register(this, UpdateNotifications);
+			//ServerApi.Hooks.GameUpdate.Register(this, UpdateNotifications);
 			ServerApi.Hooks.ServerChat.Register(this, OnChat);
 
 			if (SEconomyPlugin.Instance != null)
@@ -128,7 +132,7 @@ namespace CTRSystem
 			}
 		}
 
-		#region Chat Async
+		#region Chat Async [DEPRECATED]
 		//		async void OnChat(ServerChatEventArgs e)
 		//		{
 		//			if (e.Handled)
@@ -298,6 +302,11 @@ namespace CTRSystem
 				TShockAPI.Commands.ChatCommands.Add(c);
 			};
 
+			Add(new Command(Permissions.Admin, Commands.CAdmin, "cadmin")
+			{
+				HelpText = "Perform administrative actions across the Contributions Track & Reward System."
+			});
+
 			Add(new Command(Permissions.Commands, Commands.Contributions,
 				(new List<string>(Config.AdditionalCommandAliases) { "ctrs" }).ToArray())
 			{
@@ -307,8 +316,11 @@ namespace CTRSystem
 			Add(new Command(Permissions.Auth, Commands.Authenticate, "auth", "authenticate")
 			{
 				DoLog = false,
-				HelpText = "Connects your Xenforo account to your TShock account. Generate an auth code first by visiting your user control panel."
+				HelpText = "Connects your Xenforo account to your TShock account. Enter your forum credentials OR generate an auth code first by visiting your user control panel."
 			});
+
+			//TShock.RestApi.Register(new RestCommand("ctrs/transaction", Commands.RestNewTransaction));
+			TShock.RestApi.Register(new SecureRestCommand("/ctrs/transaction", Commands.RestNewTransaction, "ctrs.rest.transaction"));
 
 			#endregion
 
@@ -349,6 +361,7 @@ namespace CTRSystem
 			Contributors = new ContributorManager(Db);
 			CredentialHelper = new LoginManager();
 			Tiers = new TierManager(Db);
+			Timers = new Timer[Main.maxNetPlayers];
 			XenforoUsers = new XenforoManager(xfdb);
 		}
 
@@ -357,7 +370,24 @@ namespace CTRSystem
 			try
 			{
 				// Fetches the contributor from the cache (if possible), syncing with the db in case its sync state is false
-				await Contributors.GetAsync(e.Player.User.ID);
+				Contributor con = await Contributors.GetAsync(e.Player.User.ID);
+				// Timer Setup
+				if (con != null)
+				{
+					if (Timers[e.Player.Index] == null)
+						Timers[e.Player.Index] = new Timer();
+
+					Timers[e.Player.Index].Interval = Config.NotificationDelaySeconds * 1000;
+					Timers[e.Player.Index].Elapsed += async (object sender, ElapsedEventArgs args) =>
+					{
+						if (Timers[e.Player.Index].Interval != Config.NotificationCheckSeconds * 1000)
+							Timers[e.Player.Index].Interval = Config.NotificationCheckSeconds * 1000;
+						
+						// Do Update Notifications
+						await UpdateNotifications(e.Player, con);
+					};
+					Timers[e.Player.Index].Start();
+				}
 			}
 			catch
 			{
@@ -371,6 +401,11 @@ namespace CTRSystem
 			{
 				// Set the sync variable to false so that changes applied while the user was off can be applied
 				Contributors.SetSync(e.Player.User.ID, false);
+				if (Timers[e.Player.Index] != null)
+				{
+					Timers[e.Player.Index].Stop();
+					Timers[e.Player.Index] = null;
+				}
 			}
 			catch
 			{
@@ -469,16 +504,16 @@ namespace CTRSystem
 
 		#endregion
 
-		async void UpdateNotifications(EventArgs e)
+		async Task UpdateNotifications(TSPlayer player, Contributor con)
 		{
-			if ((DateTime.Now - lastNotification).TotalSeconds >= Config.NotificationCheckSeconds)
-			{
-				lastNotification = DateTime.Now;
-				foreach (TSPlayer player in TShock.Players.Where(p => p != null && p.Active && p.IsLoggedIn && p.User != null))
-				{
+			//if ((DateTime.Now - lastNotification).TotalSeconds >= Config.NotificationCheckSeconds)
+			//{
+			//	lastNotification = DateTime.Now;
+				//foreach (TSPlayer player in TShock.Players.Where(p => p != null && p.Active && p.IsLoggedIn && p.User != null))
+				//{
 					//Contributor con = await Contributors.GetAsync(player.User.ID);
-					Contributor con = Contributors.Get(player.User.ID);
-					if (con == null)
+					//Contributor con = Contributors.Get(player.User.ID);
+					if (player == null || con == null)
 						return;
 
 					ContributorUpdates updates = 0;
@@ -517,8 +552,8 @@ namespace CTRSystem
 
 					if (!await Contributors.UpdateAsync(con, updates) && Config.LogDatabaseErrors)
 						TShock.Log.ConsoleError("CTRS-DB: something went wrong while updating a contributor's notifications.");
-				}
-			}
+				//}
+			//}
 		}
 
 		void UpdateTiers(EventArgs e)

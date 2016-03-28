@@ -53,6 +53,8 @@ namespace CTRSystem.Configuration
 		/// {7} - NextTier.Name
 		/// {8} - CreditsForNextTier
 		/// {9} - ChatColor
+		/// {10} - Experience Multiplier in percentage aditive: 1.10 = '10%'
+		/// {11} - Experience Multiplier in percentage total: 1.10 = '110%'
 		/// </summary>
 		/// <param name="player">The contributor to take elements from.</param>
 		/// <returns>The formatted string.</returns>
@@ -69,7 +71,9 @@ namespace CTRSystem.Configuration
 				tier != null ? tier.ChatColor.HasValue ? TShock.Utils.ColorTag(tier.Name, tier.ChatColor.Value) : tier.Name : "N/A",
 				nextTier != null ? nextTier.ChatColor.HasValue ? TShock.Utils.ColorTag(nextTier.Name, nextTier.ChatColor.Value) : nextTier.Name : "N/A",
 				String.Format(CTRS.Config.CreditsFormat, (nextTier != null && tier != null) ? ((int)(nextTier.CreditsRequired - credits)).ToString() : "N/A"),
-				Tools.ColorToRGB(contributor.ChatColor));
+				Tools.ColorToRGB(contributor.ChatColor),
+				tier != null ? $"{Math.Round(tier.ExperienceMultiplier * 100 - 100)}%" : "0%",
+				tier != null ? $"{Math.Round(tier.ExperienceMultiplier * 100)}%" : "100%");
 		}
 
 		// 0 - player name | 1 - Tier.Name with ChatColor

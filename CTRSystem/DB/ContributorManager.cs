@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Text;
 using System.Threading.Tasks;
+using CTRSystem.Extensions;
 using MySql.Data.MySqlClient;
 using TShockAPI;
 using TShockAPI.DB;
-using CTRSystem.Extensions;
 
 namespace CTRSystem.DB
 {
@@ -54,6 +55,31 @@ namespace CTRSystem.DB
 		public async Task LoadCache()
 		{
 			_cache = await GetAllAsync();
+		}
+
+		public bool Add(Contributor contributor)
+		{
+			if (_cache.Exists(c => c.UserID.Value == contributor.UserID.Value))
+				return false;
+
+			string query = "INSERT INTO Contributors (UserID, TotalCredits, LastAmount, Tier, Notifications, Settings) "
+						 + "VALUES (@0, @1, @3, @4, @5, @6);";
+			if (contributor.LastDonation != DateTime.MinValue)
+				query = "INSERT INTO Contributors (UserID, TotalCredits, LastDonation, LastAmount, Tier, Notifications, Settings) "
+					  + "VALUES (@0, @1, @2, @3, @4, @5, @6);";
+
+			lock (_cache)
+			{
+				_cache.Add(contributor);
+				return db.Query(query,
+					contributor.UserID.Value,
+					contributor.TotalCredits,
+					contributor.LastDonation.ToUnixTime(),
+					contributor.LastAmount,
+					contributor.Tier,
+					contributor.Notifications,
+					contributor.Settings) == 1;
+			}
 		}
 
 		/// <summary>

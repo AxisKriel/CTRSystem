@@ -1,10 +1,12 @@
 CTRS VERIFIED BUGS
- - Notification timer is malfunctioning (consider making actual timer and recreating on refresh)
- - Tier update isn't done automatically anywhere (probably because it requires the notification bit, verify where it is set)
+
 
 CTRS NEEDED FEATURES
- - REST route for new donation (to update things dynamically)
+ - REST route for new donation (to update things dynamically) - DONE
  - Permabuffs integration (update permabuffs and possibly make the generalized command)
 
 CTRS OPTIONAL FEATURES
  - Autonomize /auth to fetch contributor status without needing to manually insert data into the table, or have a program/command that does that
+
+DATABASE ACCESS RULES
+ - Every change to the total credit count should go through the REST /transaction endpoint. The tier field should never be changed manually, unless tier-locking a user.

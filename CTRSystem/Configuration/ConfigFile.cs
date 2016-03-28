@@ -39,6 +39,8 @@ namespace CTRSystem.Configuration
 
 		public string AuthCodeHandlerURL { get; set; } = "http://sbplanet.co/authenticate.php";
 
+		public int NotificationDelaySeconds { get; set; } = 10;
+
 		public int NotificationCheckSeconds { get; set; } = 30;
 
 		public int TierRefreshMinutes { get; set; } = 30;

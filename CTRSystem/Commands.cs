@@ -11,6 +11,8 @@ using Rests;
 using TShockAPI.DB;
 using HttpServer;
 using System.Net;
+using CTRSystem.Extensions;
+using Rests;
 
 namespace CTRSystem
 {
@@ -132,6 +134,52 @@ namespace CTRSystem
 			}
 		}
 
+		public static async void CAdmin(CommandArgs args)
+		{
+			var cmds = new Dictionary<char, string>
+			{
+				['T'] = "force-tier-upgrade"
+			};
+
+			if (args.Parameters.Count < 1)
+			{
+				args.Player.SendInfoMessage("CTRS Administrative Actions:");
+				foreach (var kvp in cmds)
+				{
+					args.Player.SendInfoMessage($"-{kvp.Key}	--{kvp.Value}");
+				}
+				return;
+			}
+
+			// This is the first administrative command. Should probably make proper regex if more are tok come
+			// NOTE: Do not use {Tag} for those, seeing as they are often ran from the console
+			if (args.Parameters[0] == "-T" || args.Parameters[0].Equals("--force-tier-upgrade", StringComparison.OrdinalIgnoreCase))
+			{
+				args.Parameters.RemoveAt(0);
+				User user;
+				string id = String.Join(" ", args.Parameters).Trim();
+				int uID;
+				if (Int32.TryParse(id, out uID))
+					user = TShock.Users.GetUserByID(uID);
+				else
+					user = TShock.Users.GetUserByName(id);
+				if (user == null)
+					args.Player.SendErrorMessage("Invalid user!");
+				else
+				{
+					Contributor target = await CTRS.Contributors.GetAsync(user.ID);
+					if (target == null)
+						args.Player.SendErrorMessage($"User '{user.Name}' is not a contributor.");
+					else
+					{
+						target.Notifications |= Notifications.TierUpdate;
+						await CTRS.Tiers.UpgradeTier(target);
+						args.Player.SendSuccessMessage($"Forced a tier upgrade on contributor '{user.Name}'.");
+					}
+				}
+			}
+		}
+
 		public static async void Contributions(CommandArgs args)
 		{
 			// Even with the command permission, the player must be logged in and be a contributor to proceed
@@ -185,7 +233,7 @@ namespace CTRSystem
 				var match = regex.Match(args.Message);
 				if (!match.Success)
 				{
-					args.Player.SendErrorMessage($"{Tag} Invalid syntax! Proper syntax: {spe}ctrs <info/color> [rrr,ggg,bbb]");
+					args.Player.SendErrorMessage($"Invalid syntax! Proper syntax: {spe}ctrs <info/color> [rrr,ggg,bbb]");
 					return;
 				}
 
@@ -237,9 +285,73 @@ namespace CTRSystem
 
 		}
 
-		public static void RestNewTransaction(RestRequestArgs args)
+		[Route("/ctrs/transaction")]
+		[Permission(Permissions.RestTransaction)]
+		[Noun("user", true, "The user account connected to the contributor's forum account.", typeof(String))]
+		[Noun("type", false, "The search criteria type (name for name lookup, id for id lookup).", typeof(String))]
+		[Noun("credits", true, "The amount of credits to transfer.", typeof(Int32))]
+		[Noun("date", false, "The date on which the original transaction was performed, as a Int64 unix timestamp.", typeof(Int64))]
+		[Token]
+		public static object RestNewTransaction(RestRequestArgs args)
 		{
+			var ret = UserFind(args.Parameters);
+			if (ret is RestObject)
+				return ret;
 
+			User user = (User)ret;
+			if (String.IsNullOrWhiteSpace(args.Parameters["credits"]))
+				return RestMissingParam("credits");
+
+			float credits;
+			if (!Single.TryParse(args.Parameters["credits"], out credits))
+				return RestInvalidParam("credits");
+			
+			long dateUnix = 0;
+			if (!String.IsNullOrWhiteSpace(args.Parameters["date"]))
+				Int64.TryParse(args.Parameters["date"], out dateUnix);
+
+			Contributor con = CTRS.Contributors.Get(user.ID);
+			bool success = false;
+			if (con == null)
+			{
+				// Transactions must never be ignored. If the contributor doesn't exist, create it
+				con = new Contributor(user.ID);
+				con.LastAmount = credits;
+				if (dateUnix > 0)
+					con.LastDonation = dateUnix.FromUnixTime();
+				con.Tier = 1;
+				con.TotalCredits = credits;
+				success = CTRS.Contributors.Add(con);
+				if (!success)
+					TShock.Log.ConsoleInfo($"CTRS-WARNING: Failed to register contribution made by user '{user.Name}'!");
+			}
+			else
+			{
+				ContributorUpdates updates = 0;
+
+				con.LastAmount = credits;
+				updates |= ContributorUpdates.LastAmount;
+
+				if (dateUnix > 0)
+				{
+					con.LastDonation = dateUnix.FromUnixTime();
+					updates |= ContributorUpdates.LastDonation;
+				}
+
+				con.TotalCredits += credits;
+				updates |= ContributorUpdates.TotalCredits;
+
+				con.Notifications |= Notifications.NewDonation;
+				// Always prompt a tier update check here
+				con.Notifications |= Notifications.TierUpdate;
+				updates |= ContributorUpdates.Notifications;
+
+				success = CTRS.Contributors.Update(con, updates);
+			}
+			if (!success)
+				return RestError("Transaction was not registered properly.");
+			else
+				return RestResponse("Transaction successful.");
 		}
 
 		#region REST Utility Methods
@@ -328,35 +440,6 @@ namespace CTRSystem
 			return user;
 		}
 
-		private static object BanFind(IParameterCollection parameters)
-		{
-			string name = parameters["ban"];
-			if (string.IsNullOrWhiteSpace(name))
-				return RestMissingParam("ban");
-
-			string type = parameters["type"];
-			if (string.IsNullOrWhiteSpace(type))
-				return RestMissingParam("type");
-
-			Ban ban;
-			switch (type)
-			{
-				case "ip":
-					ban = TShock.Bans.GetBanByIp(name);
-					break;
-				case "name":
-					ban = TShock.Bans.GetBanByName(name, GetBool(parameters["caseinsensitive"], true));
-					break;
-				default:
-					return RestError("Invalid Type: '" + type + "'");
-			}
-
-			if (null == ban)
-				return RestError("Ban " + type + " '" + name + "' doesn't exist");
-
-			return ban;
-		}
-
 		private static object GroupFind(IParameterCollection parameters)
 		{
 			var name = parameters["group"];
@@ -368,43 +451,6 @@ namespace CTRSystem
 				return RestError("Group '" + name + "' doesn't exist");
 
 			return group;
-		}
-
-		private static Dictionary<string, object> PlayerFilter(TSPlayer tsPlayer, IParameterCollection parameters, bool viewips = false)
-		{
-			var player = new Dictionary<string, object>
-				{
-					{"nickname", tsPlayer.Name},
-					{"username", tsPlayer.User == null ? "" : tsPlayer.User.Name},
-					{"group", tsPlayer.Group.Name},
-					{"active", tsPlayer.Active},
-					{"state", tsPlayer.State},
-					{"team", tsPlayer.Team},
-				};
-
-			if (viewips)
-			{
-				player.Add("ip", tsPlayer.IP);
-			}
-			foreach (IParameter filter in parameters)
-			{
-				if (player.ContainsKey(filter.Name) && !player[filter.Name].Equals(filter.Value))
-					return null;
-			}
-			return player;
-		}
-
-		private static object PlayerSetMute(IParameterCollection parameters, bool mute)
-		{
-			var ret = PlayerFind(parameters);
-			if (ret is RestObject)
-				return ret;
-
-			TSPlayer player = (TSPlayer)ret;
-			player.mute = mute;
-			var verb = mute ? "muted" : "unmuted";
-			player.SendInfoMessage("You have been remotely " + verb);
-			return RestResponse("Player " + player.Name + " was " + verb);
 		}
 
 		#endregion
