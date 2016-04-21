@@ -226,6 +226,16 @@ namespace CTRSystem
 					args.Player.SendInfoMessage($"{Tag} {s}");
 				}
 			}
+			else if (args.Parameters[0] == "-C" || args.Parameters[0].Equals("cmds", StringComparison.OrdinalIgnoreCase) || args.Parameters[0].Equals("commands", StringComparison.OrdinalIgnoreCase))
+			{
+				args.Player.SendInfoMessage($"{Tag} Unlocked commands:");
+				args.Player.SendInfoMessage(String.Format("{0} -c Color     [{1}]", Tag, (con.Settings & Settings.CanChangeColor) == Settings.CanChangeColor ? "x" : " "));
+				#region DEBUG
+#if DEBUG
+				args.Player.SendInfoMessage($"{Tag} Settings value: " + (int)con.Settings + " | " + con.Settings.ToString());
+#endif
+				#endregion
+			}
 			else
 			{
 				var regex = new Regex(@"^\w+ (?:-c|color) ?((?<RGB>\d{1,3},\d{1,3},\d{1,3})|(?<Remove>-r|remove))?$");
@@ -242,6 +252,7 @@ namespace CTRSystem
 					args.Player.SendWarningMessage($"{Tag} You don't have permission to set chat colors!");
 					if (!String.IsNullOrWhiteSpace(CTRS.Config.Texts.RestrictedColorTip))
 						args.Player.SendInfoMessage($"{Tag} {CTRS.Config.Texts.RestrictedColorTip}");
+					return;
 				}
 
 				// Color command
@@ -378,7 +389,7 @@ namespace CTRSystem
 			}
 		}
 
-		#region REST Utility Methods
+#region REST Utility Methods
 
 		private static RestObject RestError(string message, string status = "400")
 		{
@@ -477,6 +488,6 @@ namespace CTRSystem
 			return group;
 		}
 
-		#endregion
+#endregion
 	}
 }

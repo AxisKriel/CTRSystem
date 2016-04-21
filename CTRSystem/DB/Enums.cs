@@ -32,6 +32,6 @@ namespace CTRSystem.DB
 	[Flags]
 	public enum Settings
 	{
-		CanChangeColor
+		CanChangeColor = 1
 	}
 }
