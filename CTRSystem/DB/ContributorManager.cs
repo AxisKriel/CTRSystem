@@ -54,7 +54,11 @@ namespace CTRSystem.DB
 		/// <returns>The task for this action.</returns>
 		public async Task LoadCache()
 		{
-			_cache = await GetAllAsync();
+			List<Contributor> list = await GetAllAsync();
+			lock (_cache)
+			{
+				_cache = list;
+			}
 		}
 
 		public bool Add(Contributor contributor)
@@ -98,15 +102,16 @@ namespace CTRSystem.DB
 		/// </summary>
 		/// <param name="userID">The contributor ID, usually their user ID.</param>
 		/// <param name="throwExceptions">If true, will throw exceptions when something goes wrong.</param>
+		/// <param name="force">If true, will force-synchronize with the database regardless of the sync state.</param>
 		/// <returns>A contributor object, or null if not found.</returns>
-		public Task<Contributor> GetAsync(int userID, bool throwExceptions = false)
+		public Task<Contributor> GetAsync(int userID, bool throwExceptions = false, bool force = false)
 		{
 			return Task.Run(() =>
 			{
 				Contributor contributor = Get(userID);
 				if (contributor == null)
 					return null;
-				else if (!contributor.Synced)
+				else if (force || !contributor.Synced)
 				{
 					string query = "SELECT * FROM Contributors WHERE UserID = @0;";
 					using (var result = db.QueryReader(query, userID))
@@ -158,15 +163,16 @@ namespace CTRSystem.DB
 		/// </summary>
 		/// <param name="xenforoID">The contributor's xenforo ID, if any.</param>
 		/// <param name="throwExceptions">If true, will throw exceptions when something goes wrong.</param>
+		/// <param name="force">If true, will force-synchronize with the database regardless of the sync state.</param>
 		/// <returns>A contributor object, or null if not found.</returns>
-		public Task<Contributor> GetByXenforoIDAsync(int xenforoID, bool throwExceptions = false)
+		public Task<Contributor> GetByXenforoIDAsync(int xenforoID, bool throwExceptions = false, bool force = false)
 		{
 			return Task.Run(() =>
 			{
 				Contributor contributor = GetByXenforoID(xenforoID);
 				if (contributor == null)
 					return null;
-				else if (!contributor.Synced)
+				else if (force || !contributor.Synced)
 				{
 					string query = "SELECT * FROM Contributors WHERE XenforoID = @0;";
 					using (var result = db.QueryReader(query, xenforoID))
@@ -232,14 +238,6 @@ namespace CTRSystem.DB
 				}
 				return list;
 			});
-		}
-
-		/// <summary>
-		/// Clears up the cache, requiring all contributor data to be fetched once again.
-		/// </summary>
-		public void ClearCache()
-		{
-			_cache.Clear();
 		}
 
 		/// <summary>

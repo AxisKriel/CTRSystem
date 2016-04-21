@@ -12,7 +12,6 @@ using TShockAPI.DB;
 using HttpServer;
 using System.Net;
 using CTRSystem.Extensions;
-using Rests;
 
 namespace CTRSystem
 {
@@ -237,6 +236,14 @@ namespace CTRSystem
 					return;
 				}
 
+				// If command restrictions are on, check Settings.CanChangeColor
+				if (CTRS.Config.RestrictCommands && (con.Settings & Settings.CanChangeColor) != Settings.CanChangeColor)
+				{
+					args.Player.SendWarningMessage($"{Tag} You don't have permission to set chat colors!");
+					if (!String.IsNullOrWhiteSpace(CTRS.Config.Texts.RestrictedColorTip))
+						args.Player.SendInfoMessage($"{Tag} {CTRS.Config.Texts.RestrictedColorTip}");
+				}
+
 				// Color command
 				if (!String.IsNullOrEmpty(match.Groups["Remove"].Value))
 				{
@@ -305,7 +312,7 @@ namespace CTRSystem
 			float credits;
 			if (!Single.TryParse(args.Parameters["credits"], out credits))
 				return RestInvalidParam("credits");
-			
+
 			long dateUnix = 0;
 			if (!String.IsNullOrWhiteSpace(args.Parameters["date"]))
 				Int64.TryParse(args.Parameters["date"], out dateUnix);
@@ -352,6 +359,23 @@ namespace CTRSystem
 				return RestError("Transaction was not registered properly.");
 			else
 				return RestResponse("Transaction successful.");
+		}
+
+		[Route("/ctrs/update")]
+		[Permission(Permissions.RestTransaction)]
+		[Token]
+		public static object RestUpdateContributors(RestRequestArgs args)
+		{
+			try
+			{
+				// Fetch contributor data from the database (sadly we can't do this async)
+				Task.Run(() => CTRS.Contributors.LoadCache());
+				return RestResponse("Update sent.");
+			}
+			catch (Exception ex)
+			{
+				return RestError("Update failed: " + ex.Message);
+			}
 		}
 
 		#region REST Utility Methods

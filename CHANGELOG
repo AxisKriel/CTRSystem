@@ -1,0 +1,8 @@
+1.0.1
+ * Now multiplying experience synchronously again, so the display should be 100% more accurate;
+ * Added RestrictCommands and Texts.RestrictedColorTip to Config;
+ * UpdateTiers now posts to the Console/Log, along with whether it succeeded or not.
+ * Added Rest Route `/ctrs/update` which forces a server instance to re-fetch the contributor cache.
+
+1.0.0
+ * First functional release.

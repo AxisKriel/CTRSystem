@@ -59,7 +59,7 @@ namespace CTRSystem
 
 		public string SubVersion
 		{
-			get { return "Working Notifications & REST Transaction"; }
+			get { return "Command Restrictions"; }
 		}
 
 		public CTRS(Main game) : base(game)
@@ -128,7 +128,9 @@ namespace CTRSystem
 				SEconomyPlugin.SEconomyUnloaded += SEconomyUnloaded;
 
 				// Initial hooking, as SEconomyLoaded has already been called
-				SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += MultiplyExpAsync;
+				// Disabling async until a way of making it work with the display is found
+				// SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += MultiplyExpAsync;
+				SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += MultiplyExp;
 			}
 		}
 
@@ -320,7 +322,8 @@ namespace CTRSystem
 			});
 
 			//TShock.RestApi.Register(new RestCommand("ctrs/transaction", Commands.RestNewTransaction));
-			TShock.RestApi.Register(new SecureRestCommand("/ctrs/transaction", Commands.RestNewTransaction, "ctrs.rest.transaction"));
+			TShock.RestApi.Register(new SecureRestCommand("/ctrs/transaction", Commands.RestNewTransaction, Permissions.RestTransaction));
+			TShock.RestApi.Register(new SecureRestCommand("/ctrs/update", Commands.RestUpdateContributors, Permissions.RestTransaction));
 
 			#endregion
 
@@ -458,12 +461,46 @@ namespace CTRSystem
 
 		void SEconomyLoaded(object sender, EventArgs e)
 		{
-			SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += MultiplyExpAsync;
+			// Disabling async until a way of making it work with the display is found
+			//SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += MultiplyExpAsync;
+			SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += MultiplyExp;
 		}
 
 		void SEconomyUnloaded(object sender, EventArgs e)
 		{
-			SEconomyPlugin.Instance.RunningJournal.BankTransactionPending -= MultiplyExpAsync;
+			// Disabling async until a way of making it work with the display is found
+			//SEconomyPlugin.Instance.RunningJournal.BankTransactionPending -= MultiplyExpAsync;
+			SEconomyPlugin.Instance.RunningJournal.BankTransactionPending -= MultiplyExp;
+		}
+
+		void MultiplyExp(object sender, PendingTransactionEventArgs e)
+		{
+			// Should only work with system accounts as this will also make the sender pay more currency
+			if (SEconomyPlugin.Instance != null && e.ToAccount != null && e.FromAccount != null && e.FromAccount.IsSystemAccount)
+			{
+				// Find the tshock user
+				var user = TShock.Users.GetUserByName(e.ToAccount.UserAccountName);
+				if (user == null)
+					return;
+
+				Contributor con = Contributors.Get(user.ID);
+				if (con == null)
+					return;
+
+				// Get the tier, find the experience multiplier
+				Tier tier = Tiers.Get(con.Tier);
+				if (tier == null)
+				{
+					TShock.Log.ConsoleError($"CTRS: contributor {con.UserID.Value} has an invalid tier ID! ({con.Tier})");
+					return;
+				}
+
+				if (tier.ExperienceMultiplier != 1f)
+				{
+					// Multiply the amount of currency gained by the experience multiplier
+					e.Amount = new Money(Convert.ToInt64(e.Amount.Value * tier.ExperienceMultiplier));
+				}
+			}
 		}
 
 		async void MultiplyExpAsync(object sender, PendingTransactionEventArgs e)
@@ -561,7 +598,16 @@ namespace CTRSystem
 			if ((DateTime.Now - lastRefresh).TotalMinutes >= Config.TierRefreshMinutes)
 			{
 				lastRefresh = DateTime.Now;
-				Tiers.Refresh();
+				try
+				{
+					Tiers.Refresh();
+					TShock.Log.ConsoleInfo("CTRS: Refreshed tiers.");
+				}
+				catch (Exception ex)
+				{
+					TShock.Log.ConsoleError("CTRS: Exception thrown during tier refresh. Check logs for details.");
+					TShock.Log.Error(ex.ToString());
+				}
 			}
 		}
 	}

@@ -34,6 +34,8 @@ namespace CTRSystem.Configuration
 
 		public string NewDonation = "Welcome back to Saybrook's Planet! We've just received a contribution of {1} that was applied to your account!";
 
+		public string RestrictedColorTip = "You can purchase this command with credits. Contact an admin for details.";
+
 		// 0 - player name
 		public string FormatIntroduction(TSPlayer player, Contributor contributor)
 		{
