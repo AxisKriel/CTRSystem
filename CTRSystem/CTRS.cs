@@ -21,17 +21,9 @@ using Wolfje.Plugins.SEconomy.Journal;
 using Config = CTRSystem.Configuration.ConfigFile;
 using Texts = CTRSystem.Configuration.Texts;
 
-/*
-TODO LIST:
-	Properly implement synchronous permissions															[x]
-	Figure out why chat still doesn't work																[x]
-	Finish base Texts (Introduction, info) and test Info command										[x]
-	...
-*/
-
 namespace CTRSystem
 {
-	[ApiVersion(1, 22)]
+	[ApiVersion(1, 23)]
 	public class CTRS : TerrariaPlugin
 	{
 		private static DateTime lastRefresh;
@@ -59,7 +51,7 @@ namespace CTRSystem
 
 		public string SubVersion
 		{
-			get { return "Command Restrictions"; }
+			get { return "Terraria v1.3.1.1"; }
 		}
 
 		public CTRS(Main game) : base(game)
@@ -107,6 +99,12 @@ namespace CTRSystem
 					SEconomyPlugin.SEconomyLoaded -= SEconomyLoaded;
 					SEconomyPlugin.SEconomyUnloaded -= SEconomyUnloaded;
 				}
+
+				for (int i = 0; i < Main.maxNetPlayers; i++)
+				{
+					if (Timers[i] != null && Timers[i].Enabled)
+						Timers[i].Stop();
+				}
 			}
 		}
 
@@ -133,83 +131,6 @@ namespace CTRSystem
 				SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += MultiplyExp;
 			}
 		}
-
-		#region Chat Async [DEPRECATED]
-		//		async void OnChat(ServerChatEventArgs e)
-		//		{
-		//			if (e.Handled)
-		//				return;
-
-		//			// A quick check to reduce DB work when this feature isn't in use
-		//			if (String.IsNullOrWhiteSpace(Config.ContributorChatFormat) || Config.ContributorChatFormat == TShock.Config.ChatFormat)
-		//				return;
-
-		//			var player = TShock.Players[e.Who];
-		//			if (player == null)
-		//				return;
-
-		//			if (e.Text.Length > 500)
-		//				return;
-
-		//			// If true, the message is a command, so we skip it
-		//			if ((e.Text.StartsWith(TShockAPI.Commands.Specifier) || e.Text.StartsWith(TShockAPI.Commands.SilentSpecifier))
-		//				&& !String.IsNullOrWhiteSpace(e.Text.Substring(1)))
-		//				return;
-
-		//			// Player needs to be able to talk, not be muted, and must be logged in
-		//			if (!player.HasPermission(TShockAPI.Permissions.canchat) || player.mute || !player.IsLoggedIn)
-		//				return;
-
-		//			// At this point, ChatAboveHeads is not supported, but it could be a thing in the future
-		//			if (!TShock.Config.EnableChatAboveHeads)
-		//			{
-		//				Contributor con = await Contributors.GetAsync(player.User.ID);
-		//				if (con == null)
-		//					return;
-
-		//				Tier tier;
-		//				try
-		//				{
-		//					tier = await Tiers.GetByCreditsAsync(con.TotalCredits);
-		//				}
-		//				catch (TierManager.TierNotFoundException)
-		//				{
-		//#if DEBUG
-		//					TShock.Log.ConsoleError("OnChat: Tier fetching didn't return any tier");
-		//#endif
-		//					return;
-		//				}
-
-		//				/* Contributor chat format:
-		//					{0} - group name
-		//					{1} - group prefix
-		//					{2} - player name
-		//					{3} - group suffix
-		//					{4} - message text
-		//					{5} - tier shortname
-		//					{6} - tier name
-		//					{7} - webID
-
-		//				 */
-		//				var text = String.Format(Config.ContributorChatFormat, player.Group.Name, player.Group.Prefix, player.Name,
-		//					player.Group.Suffix, e.Text, tier.ShortName ?? "", tier.Name ?? "", con.XenforoID ?? -1);
-		//				PlayerHooks.OnPlayerChat(player, e.Text, ref text);
-		//				Color? color = con.ChatColor;
-		//				if (!color.HasValue)
-		//				{
-		//#if DEBUG
-		//					TShock.Log.ConsoleInfo("OnChat: Color was null");
-		//#endif
-		//					color = new Color(player.Group.R, player.Group.G, player.Group.B);
-		//				}
-		//				TShock.Utils.Broadcast(text, color.Value.R, color.Value.G, color.Value.B);
-		//#if DEBUG
-		//				TShock.Log.ConsoleInfo("OnChat: Contributor was handled by CTRS");
-		//#endif
-		//				e.Handled = true;
-		//			}
-		//		}
-		#endregion
 
 		void OnChat(ServerChatEventArgs e)
 		{
