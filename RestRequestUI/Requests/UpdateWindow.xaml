@@ -1,0 +1,18 @@
+﻿<Window x:Class="RestRequestUI.Requests.UpdateWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:RestRequestUI.Requests"
+        mc:Ignorable="d"
+        Title="Update Request" Height="180" Width="280" ResizeMode="NoResize" WindowStartupLocation="CenterScreen" Icon="/RestRequestUI;component/favicon.ico">
+    <Grid>
+        <StackPanel Margin="5">
+            <TextBlock TextWrapping="Wrap">
+            This sends an update request to the specified server and port, causing it to re-fetch all contributor data.
+            Combo this with a Transaction Request to the main port to maintain all contributions synchronized.
+            </TextBlock>
+            <Button Name="nextButton" Margin="5,25,0,0" HorizontalAlignment="Right" Content="Next ->" Width="100" Click="nextButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

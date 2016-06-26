@@ -16,7 +16,7 @@ obj/*
 *.sqlite
 
 # Visual Studio #
-##################################
+#################
 *.userprefs
 *.suo
 *.sdf
@@ -26,3 +26,7 @@ obj/*
 *.csproj.user
 */_ReSharper*/*
 *.user
+
+# Nuget #
+#########
+/packages
