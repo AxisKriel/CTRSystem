@@ -51,7 +51,7 @@ namespace CTRSystem
 
 		public string SubVersion
 		{
-			get { return "configurable table names"; }
+			get { return "Welcome to the Multiverse"; }
 		}
 
 		public CTRS(Main game) : base(game)
@@ -300,6 +300,7 @@ namespace CTRSystem
 				{
 					// Start the timer
 					con.Initialize(e.Player.Index);
+					e.Player.Authenticate();
 				}
 			}
 			catch
@@ -319,6 +320,7 @@ namespace CTRSystem
 					Timers[e.Player.Index].Stop();
 					Timers[e.Player.Index] = null;
 				}
+				e.Player.Authenticate(true);
 			}
 			catch
 			{
@@ -401,7 +403,7 @@ namespace CTRSystem
 				Tier tier = Tiers.Get(con.Tier);
 				if (tier == null)
 				{
-					TShock.Log.ConsoleError($"CTRS: contributor {con.UserID.Value} has an invalid tier ID! ({con.Tier})");
+					TShock.Log.ConsoleError($"CTRS: contributor {con.Accounts[0]} has an invalid tier ID! ({con.Tier})");
 					return;
 				}
 
@@ -433,7 +435,7 @@ namespace CTRSystem
 				Tier tier = await Tiers.GetAsync(con.Tier);
 				if (tier == null)
 				{
-					TShock.Log.ConsoleError($"CTRS: contributor {con.UserID.Value} has an invalid tier ID! ({con.Tier})");
+					TShock.Log.ConsoleError($"CTRS: contributor {con.Accounts[0]} has an invalid tier ID! ({con.Tier})");
 					return;
 				}
 

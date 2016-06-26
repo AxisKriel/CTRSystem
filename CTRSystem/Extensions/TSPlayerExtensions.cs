@@ -10,26 +10,38 @@ namespace CTRSystem.Extensions
 {
 	public static class TSPlayerExtensions
 	{
-		private static ConditionalWeakTable<TSPlayer, TSData> data = new ConditionalWeakTable<TSPlayer, TSData>();
-
-		public static bool? IsContributor(this TSPlayer player)
+		public static bool IsAuthenticated(this TSPlayer player)
 		{
-			return data.GetOrCreateValue(player).Contributor;
+			if (!player.ContainsData(CTRSData.KEY))
+				return false;
+
+			return player.GetData<CTRSData>(CTRSData.KEY).IsAuthenticated;
 		}
 
-		public static void SetContributor(this TSPlayer player, bool value)
+		public static void Authenticate(this TSPlayer player, bool logout = false)
 		{
-			data.GetOrCreateValue(player).Contributor = value;
-		}
-
-		public static void WipeData()
-		{
-			data = new ConditionalWeakTable<TSPlayer, TSData>();
+			// Possible future addition: Authenticate hook
+			if (!player.ContainsData(CTRSData.KEY))
+				player.SetData(CTRSData.KEY, new CTRSData(!logout));
+			else
+				player.GetData<CTRSData>(CTRSData.KEY).IsAuthenticated = !logout;
 		}
 	}
 
-	public class TSData
+	public class CTRSData
 	{
-		public bool? Contributor { get; set; } = null;
+		public const string KEY  = "CTRSystem_Data";
+
+		public bool IsAuthenticated { get; set; }
+
+		public CTRSData()
+		{
+
+		}
+
+		public CTRSData(bool authenticated) : this()
+		{
+			IsAuthenticated = authenticated;
+		}
 	}
 }

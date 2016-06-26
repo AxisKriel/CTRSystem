@@ -46,7 +46,7 @@ namespace CTRSystem.Configuration
 		/// <summary>
 		/// Formats the info message sent to players when they use the info command.
 		/// {0} - Player Name
-		/// {1} - UserID
+		/// {1} - Accounts (comma separated if more than one)
 		/// {2} - WebID
 		/// {3} - Credits
 		/// {4} - TotalCredits
@@ -65,7 +65,7 @@ namespace CTRSystem.Configuration
 
 			return String.Format(Info,
 				player.Name,
-				contributor.UserID.HasValue ? contributor.UserID.Value.ToString() : "N/A",
+				contributor.Accounts.Count == 0 ? "N/A" : String.Join(",", contributor.Accounts),
 				contributor.XenforoID.HasValue ? contributor.XenforoID.Value.ToString() : "N/A",
 				String.Format(CTRS.Config.CreditsFormat, (int)credits),
 				String.Format(CTRS.Config.CreditsFormat, (int)contributor.TotalCredits),

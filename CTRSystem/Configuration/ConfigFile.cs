@@ -11,6 +11,8 @@ namespace CTRSystem.Configuration
 {
 	public class ConfigFile
 	{
+		public int AccountLimit { get; set; } = 0;
+
 		public string StorageType { get; set; } = "sqlite";
 
 		public string MySqlHost { get; set; } = "localhost:3306";

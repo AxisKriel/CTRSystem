@@ -37,13 +37,12 @@ namespace CTRSystem
 
 			Color c = Color.LightGreen;
 
-			// Only contributors may bind their accounts but this can be changed in the future
-			Contributor contributor = await CTRS.Contributors.GetAsync(args.Player.User.ID);
-			if (contributor == null)
-			{
-				args.Player.SendMessage($"{Tag} Currently, only contributors are able to connect their forum accounts to their game accounts.", c);
-				return;
-			}
+			//Contributor contributor = await CTRS.Contributors.GetAsync(args.Player.User.ID);
+			//if (contributor == null)
+			//{
+			//	args.Player.SendMessage($"{Tag} Currently, only contributors are able to connect their forum accounts to their game accounts.", c);
+			//	return;
+			//}
 
 			if (args.Parameters.Count == 0)
 			{
@@ -98,18 +97,23 @@ namespace CTRSystem
 				TShock.Log.ConsoleInfo("AUTH UPDATE: " + update.ToString());
 #endif
 				#endregion
-				LMReturnCode response = await CTRS.CredentialHelper.Authenticate(args.Player, contributor);
+				LMReturnCode response = await CTRS.CredentialHelper.Authenticate(args.Player);
 				switch (response)
 				{
 					case LMReturnCode.Success:
-						bool success = await CTRS.XenforoUsers.SetTShockID(contributor.XenforoID.Value, contributor.UserID.Value);
+						Contributor contributor = CTRS.Contributors.Get(args.Player.User.ID);
+						bool success = await CTRS.XenforoUsers.SetTShockID(contributor.XenforoID.Value, args.Player.User.ID);
 						#region DEBUG
 #if DEBUG
 						TShock.Log.ConsoleInfo($"CTRS-AUTH: Set TShockID for Contributor {contributor.UserID.Value}? {success}");
 #endif
 						#endregion
 						if (success)
+						{
+							contributor.Initialize(args.Player.Index);
+							args.Player.Authenticate();
 							args.Player.SendSuccessMessage($"{Tag} You are now authenticated for the forum account '{username}'.");
+						}
 						else
 							goto case LMReturnCode.DatabaseError;
 						break;
@@ -128,6 +132,12 @@ namespace CTRSystem
 						break;
 					case LMReturnCode.DatabaseError:
 						args.Player.SendMessage($"{Tag} Something went wrong with the database... contact an admin and try again later.", c);
+						break;
+					case LMReturnCode.UserNotAContributor:
+						args.Player.SendMessage($"{Tag} Currently, only contributors are able to connect their forum accounts to their game accounts.", c);
+						break;
+					case LMReturnCode.AccountLimitReached:
+						args.Player.SendErrorMessage($"Account limit reached. Contact an admin to revoke authentication on a previous account.");
 						break;
 				}
 			}
@@ -340,7 +350,9 @@ namespace CTRSystem
 				con.Tier = 1;
 				con.TotalCredits = credits;
 				success = CTRS.Contributors.Add(con);
-				if (!success)
+				if (success)
+					con.InitializeAll();
+				else
 					TShock.Log.ConsoleInfo($"CTRS-WARNING: Failed to register contribution made by user '{user.Name}'!");
 			}
 			else

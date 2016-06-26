@@ -20,7 +20,9 @@ namespace CTRSystem
 		UserNotFound = 4,
 		IncorrectData = 5,
 		UnloadedCredentials = 6,
-		DatabaseError = 7
+		DatabaseError = 7,
+		UserNotAContributor = 100,
+		AccountLimitReached = 101
 	}
 
 	public class LoginManager
@@ -97,7 +99,7 @@ namespace CTRSystem
 			return Update(player.User.ID, username, password);
 		}
 
-		public async Task<LMReturnCode> Authenticate(TSPlayer player, Contributor contributor)
+		public async Task<LMReturnCode> Authenticate(TSPlayer player)
 		{
 			Credentials c = Get(player);
 			if (c == null)
@@ -215,14 +217,56 @@ namespace CTRSystem
 					return LMReturnCode.UserNotFound;
 				else
 				{
-					contributor.XenforoID = Convert.ToInt32((long)dict["user_id"]);
-					if (await CTRS.Contributors.UpdateAsync(contributor, ContributorUpdates.XenforoID))
+					// Check if the user is a contributor
+					List<int> groups = new List<int>();
+					if (dict.ContainsKey("user_group_id"))
 					{
-						RemovePlayer(contributor.UserID.Value);
-						return LMReturnCode.Success;
+						groups.Add((int)dict["user_group_id"]);
+					}
+					if (dict.ContainsKey("secondary_group_ids"))
+					{
+						((string)dict["secondary_group_ids"]).Split(',').ForEach(s =>
+						{
+							groups.Add(Convert.ToInt32(s));
+						});
+					}
+					if (!CTRS.Config.Xenforo.ContributorForumGroupIDs.Intersect(groups).Any())
+					{
+						return LMReturnCode.UserNotAContributor;
+					}
+
+					Contributor contributor = await CTRS.Contributors.GetByXenforoIDAsync(Convert.ToInt32((long)dict["user_id"]));
+					if (contributor == null)
+					{
+						// Add a new contributor
+						contributor = new Contributor(player.User.ID);
+						contributor.XenforoID = Convert.ToInt32((long)dict["user_id"]);
+						if (await CTRS.Contributors.AddAsync(contributor))
+						{
+							RemovePlayer(player.User.ID);
+							return LMReturnCode.Success;
+						}
+						else
+							return LMReturnCode.DatabaseError;
 					}
 					else
-						return LMReturnCode.DatabaseError;
+					{
+						// Check account limit
+						if (CTRS.Config.AccountLimit > 0 && contributor.Accounts.Count >= CTRS.Config.AccountLimit)
+						{
+							RemovePlayer(player.User.ID);
+							return LMReturnCode.AccountLimitReached;
+						}
+
+						contributor.Accounts.Add(player.User.ID);
+						if (await CTRS.Contributors.UpdateAsync(contributor, ContributorUpdates.Accounts))
+						{
+							RemovePlayer(player.User.ID);
+							return LMReturnCode.Success;
+						}
+						else
+							return LMReturnCode.DatabaseError;
+					}
 				}
 			}
 			else

@@ -49,9 +49,13 @@ namespace CTRSystem.DB
 			});
 		}
 
-		public Task<bool> SetTShockID(int userID, int tshockID)
+		public async Task<bool> SetTShockID(int userID, int tshockID)
 		{
-			return Task.Run(() =>
+			// Only remember the first authenticated account
+			if (await GetAsync(tshockID) != null)
+				return true;
+
+			return await Task.Run(() =>
 			{
 				string query = "UPDATE xf_user SET tshock_id = @1 WHERE user_id = @0;";
 				return (db.Query(query, userID, tshockID) == 1);
@@ -61,10 +65,11 @@ namespace CTRSystem.DB
 		public async Task<float> GetContributorCredits(Contributor contributor)
 		{
 			// Only works if the contributor has linked their Xenforo account to their TShock account
-			if (!contributor.XenforoID.HasValue || !contributor.UserID.HasValue)
+			if (!contributor.XenforoID.HasValue || contributor.Accounts.Count == 0)
 				return 0f;
 
-			XFUser user = await GetAsync(contributor.UserID.Value);
+			// Note: Currently, Xenforo will only store the first account to successfully authenticate
+			XFUser user = await GetAsync(contributor.Accounts[0]);
 			return user.Credits;
 		}
 	}

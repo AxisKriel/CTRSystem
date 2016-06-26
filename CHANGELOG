@@ -1,3 +1,8 @@
+2.0.0
+ * Changed contributor table format (UserID INT -> Accounts TEXT)
+ * /auth can now add new contributors as long as you're a contributor in your forum account (contributor groups defined in the config)
+ * You can now authenticate multiple accounts (limit can be set in the config)
+
 1.0.3
  * SQL table names are now configurable (helps in multi-world settings)
  * Fixed contributor timers not working every time

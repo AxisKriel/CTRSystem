@@ -17,5 +17,14 @@ namespace CTRSystem.Configuration
 		public string MySqlPassword { get; set; } = "";
 
 		public string XenAPIURI { get; set; } = "http://sbplanet.co/forums/api.php";
+
+		public int[] ContributorForumGroupIDs { get; set; } = new[]
+		{
+			8/*		Silver Contributor	*/,
+			9/*		Gold Contributor	*/,
+			10/*	Platinum Contributor*/,
+			5/*		Diamond Contributor*/,
+			11/*	Stardust Contributor*/
+		};
 	}
 }

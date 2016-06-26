@@ -4,13 +4,17 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Timers;
+using CTRSystem.Extensions;
 using TShockAPI;
 
 namespace CTRSystem.DB
 {
 	public class Contributor
 	{
-		public int? UserID { get; set; }
+		/// <summary>
+		/// List of user account IDs authenticated with this contributor object.
+		/// </summary>
+		public List<int> Accounts { get; set; }
 
 		public int? XenforoID { get; set; }
 
@@ -40,24 +44,37 @@ namespace CTRSystem.DB
 		/// </summary>
 		public bool Synced { get; set; }
 
-		public Contributor(int? userID)
+		public Contributor(params int[] accounts)
 		{
-			UserID = userID;
+			Accounts = new List<int>(accounts);
+		}
 
-			if (userID.HasValue)
+		public static Contributor Parse(params string[] accounts)
+		{
+			List<int> parsed = new List<int>();
+			int userID;
+			for (int i = 0; i < accounts.Length; i++)
 			{
-				// Check if the player is online to initialize the contributor object
-				for (int i = 0; i < TShock.Players.Length; i++)
+				if (Int32.TryParse(accounts[i], out userID))
 				{
-					if (TShock.Players[i] != null && TShock.Players[i].Active
-						&& TShock.Players[i].IsLoggedIn
-						&& TShock.Players[i].User.ID == userID)
-					{
-						// The player is active, start the timer
-						Initialize(i);
-						break;
-					}
+					parsed.Add(userID);
 				}
+			}
+			return new Contributor(parsed.ToArray());
+		}
+
+		/// <summary>
+		/// Initializes all active user accounts.
+		/// </summary>
+		public void InitializeAll()
+		{
+			if (Accounts.Count > 0)
+			{
+				TShock.Players.Where(p => p != null && p.Active
+				&& p.IsLoggedIn && Accounts.Contains(p.User.ID)).ForEach(p =>
+				{
+					Initialize(p.Index);
+				});
 			}
 		}
 
@@ -69,10 +86,16 @@ namespace CTRSystem.DB
 			if (TShock.Players[playerID] == null)
 				throw new NullReferenceException($"player slot {playerID} was null");
 
-			if (CTRS.Timers[playerID] == null)
-				CTRS.Timers[playerID] = new Timer();
+			if (!TShock.Players[playerID].Active || !TShock.Players[playerID].IsLoggedIn || !TShock.Players[playerID].IsAuthenticated())
+				return;
 
-			CTRS.Timers[playerID].Interval = CTRS.Config.NotificationDelaySeconds * 1000;
+			if (CTRS.Timers[playerID] != null && CTRS.Timers[playerID].Enabled)
+			{
+				// Stop the timer in case it was already running
+				CTRS.Timers[playerID].Stop();
+			}
+
+			CTRS.Timers[playerID] = new Timer(CTRS.Config.NotificationDelaySeconds * 1000);
 			CTRS.Timers[playerID].Elapsed += async (object sender, ElapsedEventArgs args) =>
 			{
 				if (CTRS.Timers[playerID].Interval != CTRS.Config.NotificationCheckSeconds * 1000)

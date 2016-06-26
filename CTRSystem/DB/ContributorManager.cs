@@ -7,6 +7,7 @@ using CTRSystem.Extensions;
 using MySql.Data.MySqlClient;
 using TShockAPI;
 using TShockAPI.DB;
+using System.Linq;
 
 namespace CTRSystem.DB
 {
@@ -31,8 +32,8 @@ namespace CTRSystem.DB
 
 			if (creator.EnsureTableStructure(new SqlTable(CTRS.Config.ContributorTableName,
 				new SqlColumn("ID", MySqlDbType.Int32) { AutoIncrement = true, Primary = true },
-				new SqlColumn("UserID", MySqlDbType.Int32) { Unique = true, DefaultValue = null },
 				new SqlColumn("XenforoID", MySqlDbType.Int32) { Unique = true, DefaultValue = null },
+				new SqlColumn("Accounts", MySqlDbType.Text) { Unique = true, DefaultValue = "" },
 				new SqlColumn("TotalCredits", MySqlDbType.Float) { NotNull = true, DefaultValue = "0" },
 				new SqlColumn("LastDonation", MySqlDbType.Int64) { DefaultValue = null },
 				new SqlColumn("LastAmount", MySqlDbType.Float) { NotNull = true, DefaultValue = "0" },
@@ -41,7 +42,7 @@ namespace CTRSystem.DB
 				new SqlColumn("Notifications", MySqlDbType.Int32) { NotNull = true, DefaultValue = "0" },
 				new SqlColumn("Settings", MySqlDbType.Int32) { NotNull = true, DefaultValue = "0" })))
 			{
-				TShock.Log.ConsoleInfo("CTRS: created table 'Contributors'");
+				TShock.Log.ConsoleInfo($"CTRS: created table '{CTRS.Config.ContributorTableName}'");
 			}
 
 			// Load all contributors to the cache
@@ -63,27 +64,70 @@ namespace CTRSystem.DB
 
 		public bool Add(Contributor contributor)
 		{
-			if (_cache.Exists(c => c.UserID.Value == contributor.UserID.Value))
+			if (_cache.Exists(c => c.Accounts.Intersect(contributor.Accounts).Any()))
 				return false;
 
-			string query = $"INSERT INTO {CTRS.Config.ContributorTableName} (UserID, TotalCredits, LastAmount, Tier, Notifications, Settings) "
+			string query = $"INSERT INTO {CTRS.Config.ContributorTableName} (Accounts, TotalCredits, LastAmount, Tier, Notifications, Settings) "
 						 + "VALUES (@0, @1, @3, @4, @5, @6);";
 			if (contributor.LastDonation != DateTime.MinValue)
-				query = $"INSERT INTO {CTRS.Config.ContributorTableName} (UserID, TotalCredits, LastDonation, LastAmount, Tier, Notifications, Settings) "
+				query = $"INSERT INTO {CTRS.Config.ContributorTableName} (Accounts, TotalCredits, LastDonation, LastAmount, Tier, Notifications, Settings) "
 					  + "VALUES (@0, @1, @2, @3, @4, @5, @6);";
 
 			lock (_cache)
 			{
-				_cache.Add(contributor);
-				return db.Query(query,
-					contributor.UserID.Value,
-					contributor.TotalCredits,
-					contributor.LastDonation.ToUnixTime(),
-					contributor.LastAmount,
-					contributor.Tier,
-					contributor.Notifications,
-					contributor.Settings) == 1;
+				try
+				{
+					_cache.Add(contributor);
+					return db.Query(query,
+						String.Join(",", contributor.Accounts),
+						contributor.TotalCredits,
+						contributor.LastDonation.ToUnixTime(),
+						contributor.LastAmount,
+						contributor.Tier,
+						contributor.Notifications,
+						contributor.Settings) == 1;
+				}
+				catch
+				{
+					return false;
+				}
 			}
+		}
+
+		public async Task<bool> AddAsync(Contributor contributor)
+		{
+			if (_cache.Exists(c => c.Accounts.Intersect(contributor.Accounts).Any()))
+				return false;
+
+			return await Task.Run(() =>
+			{
+				string query = $"INSERT INTO {CTRS.Config.ContributorTableName} (Accounts, XenforoID, TotalCredits, LastAmount, Tier, Notifications, Settings) "
+						 + "VALUES (@0, @1, @2, @4, @5, @6, @7);";
+				if (contributor.LastDonation != DateTime.MinValue)
+					query = $"INSERT INTO {CTRS.Config.ContributorTableName} (Accounts, XenforoID, TotalCredits, LastDonation, LastAmount, Tier, Notifications, Settings) "
+						  + "VALUES (@0, @1, @2, @3, @4, @5, @6, @7);";
+
+				lock (_cache)
+				{
+					try
+					{
+						_cache.Add(contributor);
+						return db.Query(query,
+							String.Join(",", contributor.Accounts),
+							contributor.XenforoID.Value,
+							contributor.TotalCredits,
+							contributor.LastDonation.ToUnixTime(),
+							contributor.LastAmount,
+							contributor.Tier,
+							contributor.Notifications,
+							contributor.Settings) == 1;
+					}
+					catch
+					{
+						return false;
+					}
+				}
+			});
 		}
 
 		/// <summary>
@@ -93,7 +137,7 @@ namespace CTRSystem.DB
 		/// <returns>A contributor object, or null if not found.</returns>
 		public Contributor Get(int userID)
 		{
-			return _cache.Find(c => c.UserID.HasValue && c.UserID.Value == userID);
+			return _cache.Find(c => c.Accounts.Contains(userID));
 		}
 
 		/// <summary>
@@ -113,34 +157,34 @@ namespace CTRSystem.DB
 					return null;
 				else if (force || !contributor.Synced)
 				{
-					string query = $"SELECT * FROM {CTRS.Config.ContributorTableName} WHERE UserID = @0;";
-					using (var result = db.QueryReader(query, userID))
+					string query = $"SELECT * FROM {CTRS.Config.ContributorTableName} WHERE Accounts LIKE @0;";
+					using (var result = db.QueryReader(query, $"%{userID}%"))
 					{
 						if (result.Read())
 						{
-							contributor = new Contributor(userID)
-							{
-								XenforoID = result.Get<int?>("XenforoID"),
-								//Credits = result.Get<int>("Credits"),
-								TotalCredits = result.Get<float>("TotalCredits"),
-								LastDonation = result.Get<long>("LastDonation").FromUnixTime(),
-								LastAmount = result.Get<float>("LastAmount"),
-								Tier = result.Get<int>("Tier"),
-								ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor")),
-								Notifications = (Notifications)result.Get<int>("Notifications"),
-								Settings = (Settings)result.Get<int>("Settings"),
-								Synced = true
-							};
-							_cache.RemoveAll(c => c.UserID.HasValue && c.UserID.Value == userID);
+							contributor = Contributor.Parse(result.Get<string>("Accounts").Split(','));
+							contributor.XenforoID = result.Get<int?>("XenforoID");
+							contributor.TotalCredits = result.Get<float>("TotalCredits");
+							contributor.LastDonation = result.Get<long>("LastDonation").FromUnixTime();
+							contributor.LastAmount = result.Get<float>("LastAmount");
+							contributor.Tier = result.Get<int>("Tier");
+							contributor.ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor"));
+							contributor.Notifications = (Notifications)result.Get<int>("Notifications");
+							contributor.Settings = (Settings)result.Get<int>("Settings");
+							contributor.Synced = true;
+
+							_cache.RemoveAll(c => c.Accounts.Contains(userID));
 							_cache.Add(contributor);
+
+							contributor.Initialize(TShock.Players.FirstOrDefault(p => p != null && p.IsLoggedIn && p.User.ID == userID).Index);
 							return contributor;
 						}
-						_cache.RemoveAll(c => c.UserID.HasValue && c.UserID.Value == userID);
-						if (throwExceptions)
-							throw new ContributorNotFoundException(userID);
-						else
-							return null;
 					}
+					_cache.RemoveAll(c => c.Accounts.Contains(userID));
+					if (throwExceptions)
+						throw new ContributorNotFoundException(userID);
+					else
+						return null;
 				}
 				else
 					return contributor;
@@ -158,53 +202,49 @@ namespace CTRSystem.DB
 		}
 
 		/// <summary>
-		/// Asynchronously gets a contributor from the cache.
+		/// Asynchronously gets a contributor from the database.
 		/// Also synchronizes with the database if needed.
+		/// Note: Ignores the cache.
 		/// </summary>
 		/// <param name="xenforoID">The contributor's xenforo ID, if any.</param>
 		/// <param name="throwExceptions">If true, will throw exceptions when something goes wrong.</param>
 		/// <param name="force">If true, will force-synchronize with the database regardless of the sync state.</param>
 		/// <returns>A contributor object, or null if not found.</returns>
-		public Task<Contributor> GetByXenforoIDAsync(int xenforoID, bool throwExceptions = false, bool force = false)
+		public Task<Contributor> GetByXenforoIDAsync(int xenforoID, bool throwExceptions = false)
 		{
 			return Task.Run(() =>
 			{
-				Contributor contributor = GetByXenforoID(xenforoID);
-				if (contributor == null)
-					return null;
-				else if (force || !contributor.Synced)
+				//Contributor contributor = GetByXenforoID(xenforoID);
+				//if (contributor == null)
+				//	return null;
+				string query = $"SELECT * FROM {CTRS.Config.ContributorTableName} WHERE XenforoID = @0;";
+				using (var result = db.QueryReader(query, xenforoID))
 				{
-					string query = $"SELECT * FROM {CTRS.Config.ContributorTableName} WHERE XenforoID = @0;";
-					using (var result = db.QueryReader(query, xenforoID))
+					if (result.Read())
 					{
-						if (result.Read())
-						{
-							contributor = new Contributor(result.Get<int?>("UserID"))
-							{
-								XenforoID = xenforoID,
-								//Credits = result.Get<int>("Credits"),
-								TotalCredits = result.Get<float>("TotalCredits"),
-								LastDonation = result.Get<long>("LastDonation").FromUnixTime(),
-								LastAmount = result.Get<float>("LastAmount"),
-								Tier = result.Get<int>("Tier"),
-								ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor")),
-								Notifications = (Notifications)result.Get<int>("Notifications"),
-								Settings = (Settings)result.Get<int>("Settings"),
-								Synced = true
-							};
-							_cache.RemoveAll(c => c.XenforoID.HasValue && c.XenforoID.Value == xenforoID);
-							_cache.Add(contributor);
-							return contributor;
-						}
-						_cache.RemoveAll(c => c.XenforoID.HasValue && c.XenforoID == xenforoID);
-						if (throwExceptions)
-							throw new ContributorNotFoundException(xenforoID);
-						else
-							return null;
+						Contributor contributor = Contributor.Parse(result.Get<string>("Accounts").Split(','));
+						contributor.XenforoID = result.Get<int?>("XenforoID");
+						contributor.TotalCredits = result.Get<float>("TotalCredits");
+						contributor.LastDonation = result.Get<long>("LastDonation").FromUnixTime();
+						contributor.LastAmount = result.Get<float>("LastAmount");
+						contributor.Tier = result.Get<int>("Tier");
+						contributor.ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor"));
+						contributor.Notifications = (Notifications)result.Get<int>("Notifications");
+						contributor.Settings = (Settings)result.Get<int>("Settings");
+						contributor.Synced = true;
+
+						_cache.RemoveAll(c => c.XenforoID.HasValue && c.XenforoID.Value == xenforoID);
+						_cache.Add(contributor);
+
+						contributor.InitializeAll();
+						return contributor;
 					}
 				}
+				_cache.RemoveAll(c => c.XenforoID.HasValue && c.XenforoID == xenforoID);
+				if (throwExceptions)
+					throw new ContributorNotFoundException(xenforoID);
 				else
-					return contributor;
+					return null;
 			});
 		}
 
@@ -222,18 +262,18 @@ namespace CTRSystem.DB
 				{
 					while (result.Read())
 					{
-						list.Add(new Contributor(result.Get<int?>("UserID"))
-						{
-							XenforoID = result.Get<int?>("XenforoID"),
-							//Credits = result.Get<int>("Credits"),
-							TotalCredits = result.Get<float>("TotalCredits"),
-							LastDonation = result.Get<long>("LastDonation").FromUnixTime(),
-							LastAmount = result.Get<float>("LastAmount"),
-							Tier = result.Get<int>("Tier"),
-							ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor")),
-							Notifications = (Notifications)result.Get<int>("Notifications"),
-							Settings = (Settings)result.Get<int>("Settings")
-						});
+						Contributor contributor = Contributor.Parse(result.Get<string>("Accounts").Split(','));
+						contributor.XenforoID = result.Get<int?>("XenforoID");
+						contributor.TotalCredits = result.Get<float>("TotalCredits");
+						contributor.LastDonation = result.Get<long>("LastDonation").FromUnixTime();
+						contributor.LastAmount = result.Get<float>("LastAmount");
+						contributor.Tier = result.Get<int>("Tier");
+						contributor.ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor"));
+						contributor.Notifications = (Notifications)result.Get<int>("Notifications");
+						contributor.Settings = (Settings)result.Get<int>("Settings");
+						contributor.Synced = true;
+						contributor.InitializeAll();
+						list.Add(contributor);
 					}
 				}
 				return list;
@@ -247,7 +287,7 @@ namespace CTRSystem.DB
 		/// <param name="synced">Whether the contributor is synced or not.</param>
 		public void SetSync(int userID, bool synced)
 		{
-			Contributor con = _cache.Find(c => c.UserID == userID);
+			Contributor con = _cache.Find(c => c.Accounts.Contains(userID));
 			if (con != null)
 				con.Synced = synced;
 		}
@@ -268,7 +308,7 @@ namespace CTRSystem.DB
 			}
 			catch (Exception e)
 			{
-				TShock.Log.ConsoleError($"CTRS: An error occurred while updating a contributor's (ID: {contributor.UserID.Value} info\nMessage: {e.Message}\nCheck logs for more details");
+				TShock.Log.ConsoleError($"CTRS: An error occurred while updating a contributor's (ACCOUNT: {contributor.Accounts.ElementAtOrDefault(0)}) info\nMessage: {e.Message}\nCheck logs for more details");
 				TShock.Log.Error(e.ToString());
 				return false;
 			}
@@ -287,30 +327,39 @@ namespace CTRSystem.DB
 
 			return await Task.Run(() =>
 			{
-				List<string> updatesList = new List<string>();
-				if ((updates & ContributorUpdates.XenforoID) == ContributorUpdates.XenforoID)
-					updatesList.Add("XenforoID = @1");
-				if ((updates & ContributorUpdates.TotalCredits) == ContributorUpdates.TotalCredits)
-					updatesList.Add("TotalCredits = @2");
-				if ((updates & ContributorUpdates.LastDonation) == ContributorUpdates.LastDonation)
-					updatesList.Add("LastDonation = @3");
-				if ((updates & ContributorUpdates.LastAmount) == ContributorUpdates.LastAmount)
-					updatesList.Add("LastAmount = @4");
-				if ((updates & ContributorUpdates.Tier) == ContributorUpdates.Tier)
-					updatesList.Add("Tier = @5");
-				if ((updates & ContributorUpdates.ChatColor) == ContributorUpdates.ChatColor)
-					updatesList.Add("ChatColor = @6");
-				if ((updates & ContributorUpdates.Notifications) == ContributorUpdates.Notifications)
-					updatesList.Add("Notifications = @7");
-				if ((updates & ContributorUpdates.Settings) == ContributorUpdates.Settings)
-					updatesList.Add("Settings = @8");
+				// Update using the xenforo ID as much as possible, unless the ID itself is being set
+				bool updateByXenforoID = contributor.XenforoID.HasValue
+				&& !((updates & ContributorUpdates.XenforoID) == ContributorUpdates.XenforoID && contributor.XenforoID.HasValue);
 
-				string query = $"UPDATE {CTRS.Config.ContributorTableName} SET {String.Join(", ", updatesList)} WHERE UserID = @0;";
+				List<string> updatesList = new List<string>();
+				if ((updates & ContributorUpdates.Accounts) == ContributorUpdates.Accounts && updateByXenforoID)
+					updatesList.Add("Accounts = @1");
+				if ((updates & ContributorUpdates.XenforoID) == ContributorUpdates.XenforoID && !updateByXenforoID)
+					updatesList.Add("XenforoID = @2");
+				if ((updates & ContributorUpdates.TotalCredits) == ContributorUpdates.TotalCredits)
+					updatesList.Add("TotalCredits = @3");
+				if ((updates & ContributorUpdates.LastDonation) == ContributorUpdates.LastDonation)
+					updatesList.Add("LastDonation = @4");
+				if ((updates & ContributorUpdates.LastAmount) == ContributorUpdates.LastAmount)
+					updatesList.Add("LastAmount = @5");
+				if ((updates & ContributorUpdates.Tier) == ContributorUpdates.Tier)
+					updatesList.Add("Tier = @6");
+				if ((updates & ContributorUpdates.ChatColor) == ContributorUpdates.ChatColor)
+					updatesList.Add("ChatColor = @7");
+				if ((updates & ContributorUpdates.Notifications) == ContributorUpdates.Notifications)
+					updatesList.Add("Notifications = @8");
+				if ((updates & ContributorUpdates.Settings) == ContributorUpdates.Settings)
+					updatesList.Add("Settings = @9");
+
+				string index = updateByXenforoID ? contributor.XenforoID.Value.ToString() : contributor.Accounts[0].ToString();
+				string clause = updateByXenforoID ? "XenforoID =" : "Accounts LIKE";
+				string query = $"UPDATE {CTRS.Config.ContributorTableName} SET {String.Join(", ", updatesList)} WHERE {clause} @0;";
 				lock (_cache)
 				{
 					lock (syncLock)
 					{
-						if (db.Query(query, contributor.UserID,
+						if (db.Query(query, index,
+							String.Join(",", contributor.Accounts),
 							contributor.XenforoID,
 							contributor.TotalCredits,
 							contributor.LastDonation.ToUnixTime(),
@@ -320,7 +369,13 @@ namespace CTRSystem.DB
 							(int)contributor.Notifications,
 							(int)contributor.Settings) == 1)
 						{
-							_cache.RemoveAll(c => c.UserID.HasValue && c.UserID.Value == contributor.UserID.Value);
+							_cache.RemoveAll(c =>
+							{
+								if (updateByXenforoID)
+									return c.XenforoID == contributor.XenforoID;
+								else
+									return c.Accounts.Contains(contributor.Accounts[0]);
+							});
 							_cache.Add(contributor);
 							return true;
 						}
