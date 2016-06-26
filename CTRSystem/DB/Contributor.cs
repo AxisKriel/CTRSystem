@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Timers;
+using TShockAPI;
 
 namespace CTRSystem.DB
 {
@@ -41,6 +43,45 @@ namespace CTRSystem.DB
 		public Contributor(int? userID)
 		{
 			UserID = userID;
+
+			if (userID.HasValue)
+			{
+				// Check if the player is online to initialize the contributor object
+				for (int i = 0; i < TShock.Players.Length; i++)
+				{
+					if (TShock.Players[i] != null && TShock.Players[i].Active
+						&& TShock.Players[i].IsLoggedIn
+						&& TShock.Players[i].User.ID == userID)
+					{
+						// The player is active, start the timer
+						Initialize(i);
+						break;
+					}
+				}
+			}
+		}
+
+		/// <summary>
+		/// Initializes the contributor object for a given player.
+		/// </summary>
+		public void Initialize(int playerID)
+		{
+			if (TShock.Players[playerID] == null)
+				throw new NullReferenceException($"player slot {playerID} was null");
+
+			if (CTRS.Timers[playerID] == null)
+				CTRS.Timers[playerID] = new Timer();
+
+			CTRS.Timers[playerID].Interval = CTRS.Config.NotificationDelaySeconds * 1000;
+			CTRS.Timers[playerID].Elapsed += async (object sender, ElapsedEventArgs args) =>
+			{
+				if (CTRS.Timers[playerID].Interval != CTRS.Config.NotificationCheckSeconds * 1000)
+					CTRS.Timers[playerID].Interval = CTRS.Config.NotificationCheckSeconds * 1000;
+
+				// Do Update Notifications
+				await CTRS.UpdateNotifications(TShock.Players[playerID], this);
+			};
+			CTRS.Timers[playerID].Start();
 		}
 	}
 }

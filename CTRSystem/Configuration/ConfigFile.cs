@@ -21,6 +21,10 @@ namespace CTRSystem.Configuration
 
 		public string MySqlPassword { get; set; } = "";
 
+		public string ContributorTableName { get; set; } = "Contributors";
+
+		public string TierTableName { get; set; } = "Tiers";
+
 		public bool LogDatabaseErrors { get; set; } = true;
 
 		public string CreditsFormat { get; set; } = "{0} credit(s)";
@@ -53,17 +57,22 @@ namespace CTRSystem.Configuration
 
 		public static ConfigFile Read(string path)
 		{
+			if (String.IsNullOrWhiteSpace(path))
+			{
+				TShock.Log.ConsoleError("CTRS-Config: Invalid filepath given. Starting default configuration...");
+				return new ConfigFile();
+			}
+
+			Directory.CreateDirectory(Path.GetDirectoryName(path));
 			try
 			{
-				Directory.CreateDirectory(Path.GetDirectoryName(path));
-				if (!File.Exists(path))
+				ConfigFile file = new ConfigFile();
+				if (File.Exists(path))
 				{
-					ConfigFile config = new ConfigFile();
-					File.WriteAllText(path, JsonConvert.SerializeObject(config, Formatting.Indented));
-					return config;
+					file = JsonConvert.DeserializeObject<ConfigFile>(File.ReadAllText(path));
 				}
-				else
-					return JsonConvert.DeserializeObject<ConfigFile>(File.ReadAllText(path));
+				File.WriteAllText(path, JsonConvert.SerializeObject(file, Formatting.Indented));
+				return file;
 			}
 			catch (Exception e)
 			{

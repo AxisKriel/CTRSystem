@@ -27,7 +27,7 @@ namespace CTRSystem.DB
 				? (IQueryBuilder)new SqliteQueryCreator()
 				: new MysqlQueryCreator());
 
-			if (creator.EnsureTableStructure(new SqlTable("Tiers",
+			if (creator.EnsureTableStructure(new SqlTable(CTRS.Config.TierTableName,
 					new SqlColumn("ID", MySqlDbType.Int32) { AutoIncrement = true, Primary = true },
 					new SqlColumn("Name", MySqlDbType.VarChar) { Length = 12, Unique = true },
 					new SqlColumn("CreditsRequired", MySqlDbType.Float) { NotNull = true, DefaultValue = "0" },
@@ -36,7 +36,7 @@ namespace CTRSystem.DB
 					new SqlColumn("Permissions", MySqlDbType.Text) { NotNull = true, DefaultValue = "" },
 					new SqlColumn("ExperienceMultiplier", MySqlDbType.Float) { NotNull = true, DefaultValue = "1" })))
 			{
-				TShock.Log.ConsoleInfo("CTRS: created table 'Tiers'");
+				TShock.Log.ConsoleInfo($"CTRS: created table '{CTRS.Config.TierTableName}'");
 			}
 
 			// Load all tiers to the cache
@@ -57,7 +57,7 @@ namespace CTRSystem.DB
 					return tier;
 				else
 				{
-					string query = "SELECT * FROM Tiers WHERE ID = @0;";
+					string query = $"SELECT * FROM {CTRS.Config.TierTableName} WHERE ID = @0;";
 					using (var result = db.QueryReader(query, id))
 					{
 						if (result.Read())
@@ -90,7 +90,7 @@ namespace CTRSystem.DB
 					return tier;
 				else
 				{
-					string query = "SELECT * FROM Tiers WHERE Name = @0;";
+					string query = $"SELECT * FROM {CTRS.Config.TierTableName} WHERE Name = @0;";
 					using (var result = db.QueryReader(query, name))
 					{
 						if (result.Read())
@@ -123,7 +123,7 @@ namespace CTRSystem.DB
 		{
 			return Task.Run(() =>
 			{
-				string query = "SELECT * FROM Tiers WHERE CreditsRequired <= @0 ORDER BY CreditsRequired DESC LIMIT 1;";
+				string query = $"SELECT * FROM {CTRS.Config.TierTableName} WHERE CreditsRequired <= @0 ORDER BY CreditsRequired DESC LIMIT 1;";
 				using (var result = db.QueryReader(query, totalcredits))
 				{
 					if (result.Read())
@@ -151,7 +151,7 @@ namespace CTRSystem.DB
 			return Task.Run(() =>
 			{
 				List<Tier> list = new List<Tier>();
-				string query = "SELECT * FROM Tiers;";
+				string query = $"SELECT * FROM {CTRS.Config.TierTableName};";
 				using (var result = db.QueryReader(query))
 				{
 					while (result.Read())

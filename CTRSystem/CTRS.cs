@@ -51,7 +51,7 @@ namespace CTRSystem
 
 		public string SubVersion
 		{
-			get { return "Terraria v1.3.1.1"; }
+			get { return "configurable table names"; }
 		}
 
 		public CTRS(Main game) : base(game)
@@ -298,19 +298,8 @@ namespace CTRSystem
 				// Timer Setup
 				if (con != null)
 				{
-					if (Timers[e.Player.Index] == null)
-						Timers[e.Player.Index] = new Timer();
-
-					Timers[e.Player.Index].Interval = Config.NotificationDelaySeconds * 1000;
-					Timers[e.Player.Index].Elapsed += async (object sender, ElapsedEventArgs args) =>
-					{
-						if (Timers[e.Player.Index].Interval != Config.NotificationCheckSeconds * 1000)
-							Timers[e.Player.Index].Interval = Config.NotificationCheckSeconds * 1000;
-						
-						// Do Update Notifications
-						await UpdateNotifications(e.Player, con);
-					};
-					Timers[e.Player.Index].Start();
+					// Start the timer
+					con.Initialize(e.Player.Index);
 				}
 			}
 			catch
@@ -462,7 +451,7 @@ namespace CTRSystem
 
 		#endregion
 
-		async Task UpdateNotifications(TSPlayer player, Contributor con)
+		internal static async Task UpdateNotifications(TSPlayer player, Contributor con)
 		{
 			//if ((DateTime.Now - lastNotification).TotalSeconds >= Config.NotificationCheckSeconds)
 			//{

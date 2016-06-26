@@ -29,7 +29,7 @@ namespace CTRSystem.DB
 				? (IQueryBuilder)new SqliteQueryCreator()
 				: new MysqlQueryCreator());
 
-			if (creator.EnsureTableStructure(new SqlTable("Contributors",
+			if (creator.EnsureTableStructure(new SqlTable(CTRS.Config.ContributorTableName,
 				new SqlColumn("ID", MySqlDbType.Int32) { AutoIncrement = true, Primary = true },
 				new SqlColumn("UserID", MySqlDbType.Int32) { Unique = true, DefaultValue = null },
 				new SqlColumn("XenforoID", MySqlDbType.Int32) { Unique = true, DefaultValue = null },
@@ -66,10 +66,10 @@ namespace CTRSystem.DB
 			if (_cache.Exists(c => c.UserID.Value == contributor.UserID.Value))
 				return false;
 
-			string query = "INSERT INTO Contributors (UserID, TotalCredits, LastAmount, Tier, Notifications, Settings) "
+			string query = $"INSERT INTO {CTRS.Config.ContributorTableName} (UserID, TotalCredits, LastAmount, Tier, Notifications, Settings) "
 						 + "VALUES (@0, @1, @3, @4, @5, @6);";
 			if (contributor.LastDonation != DateTime.MinValue)
-				query = "INSERT INTO Contributors (UserID, TotalCredits, LastDonation, LastAmount, Tier, Notifications, Settings) "
+				query = $"INSERT INTO {CTRS.Config.ContributorTableName} (UserID, TotalCredits, LastDonation, LastAmount, Tier, Notifications, Settings) "
 					  + "VALUES (@0, @1, @2, @3, @4, @5, @6);";
 
 			lock (_cache)
@@ -113,7 +113,7 @@ namespace CTRSystem.DB
 					return null;
 				else if (force || !contributor.Synced)
 				{
-					string query = "SELECT * FROM Contributors WHERE UserID = @0;";
+					string query = $"SELECT * FROM {CTRS.Config.ContributorTableName} WHERE UserID = @0;";
 					using (var result = db.QueryReader(query, userID))
 					{
 						if (result.Read())
@@ -174,7 +174,7 @@ namespace CTRSystem.DB
 					return null;
 				else if (force || !contributor.Synced)
 				{
-					string query = "SELECT * FROM Contributors WHERE XenforoID = @0;";
+					string query = $"SELECT * FROM {CTRS.Config.ContributorTableName} WHERE XenforoID = @0;";
 					using (var result = db.QueryReader(query, xenforoID))
 					{
 						if (result.Read())
@@ -217,7 +217,7 @@ namespace CTRSystem.DB
 			return Task.Run(() =>
 			{
 				List<Contributor> list = new List<Contributor>();
-				string query = "SELECT * FROM Contributors;";
+				string query = $"SELECT * FROM {CTRS.Config.ContributorTableName};";
 				using (var result = db.QueryReader(query))
 				{
 					while (result.Read())
@@ -305,7 +305,7 @@ namespace CTRSystem.DB
 				if ((updates & ContributorUpdates.Settings) == ContributorUpdates.Settings)
 					updatesList.Add("Settings = @8");
 
-				string query = $"UPDATE Contributors SET {String.Join(", ", updatesList)} WHERE UserID = @0;";
+				string query = $"UPDATE {CTRS.Config.ContributorTableName} SET {String.Join(", ", updatesList)} WHERE UserID = @0;";
 				lock (_cache)
 				{
 					lock (syncLock)

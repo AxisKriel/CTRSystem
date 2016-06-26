@@ -1,3 +1,7 @@
+1.0.3
+ * SQL table names are now configurable (helps in multi-world settings)
+ * Fixed contributor timers not working every time
+
 1.0.1
  * Now multiplying experience synchronously again, so the display should be 100% more accurate;
  * Added RestrictCommands and Texts.RestrictedColorTip to Config;
