@@ -12,6 +12,11 @@ namespace CTRSystem.DB
 	public class Contributor
 	{
 		/// <summary>
+		/// Contributor ID used internally for storage and loading.
+		/// </summary>
+		public int ID { get; set; }
+
+		/// <summary>
 		/// List of user account IDs authenticated with this contributor object.
 		/// </summary>
 		public List<int> Accounts { get; set; }
@@ -42,9 +47,15 @@ namespace CTRSystem.DB
 		/// <summary>
 		/// Local-only variable used to keep the contributor's data synced.
 		/// </summary>
-		public bool Synced { get; set; }
+		//public bool Synced { get; set; }
 
-		public Contributor(params int[] accounts)
+		public Contributor(int contributorID)
+		{
+			Accounts = new List<int>();
+			ID = contributorID;
+		}
+
+		public Contributor(IEnumerable<int> accounts)
 		{
 			Accounts = new List<int>(accounts);
 		}
@@ -83,6 +94,9 @@ namespace CTRSystem.DB
 		/// </summary>
 		public void Initialize(int playerID)
 		{
+			if (playerID < 0 || playerID > Terraria.Main.maxNetPlayers - 1)
+				return;
+
 			if (TShock.Players[playerID] == null)
 				throw new NullReferenceException($"player slot {playerID} was null");
 

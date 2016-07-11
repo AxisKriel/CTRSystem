@@ -25,13 +25,15 @@ namespace CTRSystem.Configuration
 
 		public string ContributorTableName { get; set; } = "Contributors";
 
+		public string ContributorAccountsTableName { get; set; } = "Contributors_Accounts";
+
 		public string TierTableName { get; set; } = "Tiers";
 
 		public bool LogDatabaseErrors { get; set; } = true;
 
 		public string CreditsFormat { get; set; } = "{0} credit(s)";
 
-		public List<string> AdditionalCommandAliases { get; set; } = new List<string>
+		public string[] AdditionalCommandAliases { get; set; } = new []
 		{
 			"ctrsystem",
 			"contributions"

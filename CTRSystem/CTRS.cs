@@ -142,7 +142,7 @@ namespace CTRSystem
 				return;
 
 			var player = TShock.Players[e.Who];
-			if (player == null)
+			if (player == null || !player.Active || !player.IsLoggedIn || !player.IsAuthenticated())
 				return;
 
 			if (e.Text.Length > 500)
@@ -231,7 +231,7 @@ namespace CTRSystem
 			});
 
 			Add(new Command(Permissions.Commands, Commands.Contributions,
-				(new List<string>(Config.AdditionalCommandAliases) { "ctrs" }).ToArray())
+				new List<string>(Config.AdditionalCommandAliases) { "ctrs" }.ToArray())
 			{
 				HelpText = "Manages contributor settings. You must have contributed at least once before using this command."
 			});
@@ -293,7 +293,7 @@ namespace CTRSystem
 		{
 			try
 			{
-				// Fetches the contributor from the cache (if possible), syncing with the db in case its sync state is false
+				// Fetches the contributor from the database, updating the cache as needed
 				Contributor con = await Contributors.GetAsync(e.Player.User.ID);
 				// Timer Setup
 				if (con != null)
@@ -313,8 +313,6 @@ namespace CTRSystem
 		{
 			try
 			{
-				// Set the sync variable to false so that changes applied while the user was off can be applied
-				Contributors.SetSync(e.Player.User.ID, false);
 				if (Timers[e.Player.Index] != null)
 				{
 					Timers[e.Player.Index].Stop();
@@ -332,7 +330,7 @@ namespace CTRSystem
 		void OnPlayerPermission(PlayerPermissionEventArgs e)
 		{
 			// If the player isn't logged it, he's certainly not a contributor
-			if (e.Player == null || !e.Player.IsLoggedIn || e.Player.User == null)
+			if (e.Player == null || !e.Player.IsLoggedIn || e.Player.User == null || !e.Player.IsAuthenticated())
 				return;
 
 			//Contributor con = await Contributors.GetAsync(e.Player.User.ID);

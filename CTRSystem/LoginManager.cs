@@ -221,13 +221,14 @@ namespace CTRSystem
 					List<int> groups = new List<int>();
 					if (dict.ContainsKey("user_group_id"))
 					{
-						groups.Add((int)dict["user_group_id"]);
+						groups.Add(Convert.ToInt32(dict["user_group_id"]));
 					}
 					if (dict.ContainsKey("secondary_group_ids"))
 					{
 						((string)dict["secondary_group_ids"]).Split(',').ForEach(s =>
 						{
-							groups.Add(Convert.ToInt32(s));
+							if (!String.IsNullOrWhiteSpace(s))
+								groups.Add(Convert.ToInt32(s));
 						});
 					}
 					if (!CTRS.Config.Xenforo.ContributorForumGroupIDs.Intersect(groups).Any())
@@ -235,13 +236,28 @@ namespace CTRSystem
 						return LMReturnCode.UserNotAContributor;
 					}
 
-					Contributor contributor = await CTRS.Contributors.GetByXenforoIDAsync(Convert.ToInt32((long)dict["user_id"]));
+					Contributor contributor = await CTRS.Contributors.GetByXenforoIDAsync(Convert.ToInt32(dict["user_id"]));
 					if (contributor == null)
 					{
-						// Add a new contributor
-						contributor = new Contributor(player.User.ID);
-						contributor.XenforoID = Convert.ToInt32((long)dict["user_id"]);
-						if (await CTRS.Contributors.AddAsync(contributor))
+						// Attempt to find contributor by user ID in the event a transaction was logged for an unexistant contributor account
+						contributor = await CTRS.Contributors.GetAsync(player.User.ID);
+
+						bool success = false;
+						if (contributor == null)
+						{
+							// Add a new contributor
+							contributor = new Contributor(player.User.ID);
+							contributor.XenforoID = Convert.ToInt32(dict["user_id"]);
+							success = await CTRS.Contributors.AddAsync(contributor);
+						}
+						else
+						{
+							// Set XenforoID for an existing contributor
+							contributor.XenforoID = Convert.ToInt32(dict["user_id"]);
+							success = await CTRS.Contributors.UpdateAsync(contributor, ContributorUpdates.XenforoID);
+						}
+
+						if (success)
 						{
 							RemovePlayer(player.User.ID);
 							return LMReturnCode.Success;
@@ -258,9 +274,9 @@ namespace CTRSystem
 							return LMReturnCode.AccountLimitReached;
 						}
 
-						contributor.Accounts.Add(player.User.ID);
-						if (await CTRS.Contributors.UpdateAsync(contributor, ContributorUpdates.Accounts))
+						if (await CTRS.Contributors.AddAccountAsync(contributor.ID, player.User.ID))
 						{
+							contributor.Accounts.Add(player.User.ID);
 							RemovePlayer(player.User.ID);
 							return LMReturnCode.Success;
 						}

@@ -1,3 +1,7 @@
+2.1.0
+ * Accounts are now stored on a separate table as single values instead of csv, supporting atomical search
+ * Removed sync states; Contributors are now always fetched during /auth, login and logout, being cached for use on permission checks, chat and seconomy transactions.
+
 2.0.0
  * Changed contributor table format (UserID INT -> Accounts TEXT)
  * /auth can now add new contributors as long as you're a contributor in your forum account (contributor groups defined in the config)

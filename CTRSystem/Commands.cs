@@ -44,6 +44,13 @@ namespace CTRSystem
 			//	return;
 			//}
 
+			if (args.Player.IsAuthenticated())
+			{
+				// Players can only authenticate their user account to one contributor forum account
+				args.Player.SendMessage($"{Tag} You already authenticated this user account.", c);
+				return;
+			}
+
 			if (args.Parameters.Count == 0)
 			{
 				args.Player.SendMessage($"{Tag} Usage: {spe}auth <code> OR {spe}auth <username> <password>", c);
@@ -101,6 +108,7 @@ namespace CTRSystem
 				switch (response)
 				{
 					case LMReturnCode.Success:
+						// The contributor should already exist in the cache, so no need to re-fetch
 						Contributor contributor = CTRS.Contributors.Get(args.Player.User.ID);
 						bool success = await CTRS.XenforoUsers.SetTShockID(contributor.XenforoID.Value, args.Player.User.ID);
 						#region DEBUG
@@ -160,7 +168,7 @@ namespace CTRSystem
 				return;
 			}
 
-			// This is the first administrative command. Should probably make proper regex if more are tok come
+			// This is the first administrative command. Should probably make proper regex if more are to come
 			// NOTE: Do not use {Tag} for those, seeing as they are often ran from the console
 			if (args.Parameters[0] == "-T" || args.Parameters[0].Equals("--force-tier-upgrade", StringComparison.OrdinalIgnoreCase))
 			{
@@ -198,12 +206,12 @@ namespace CTRSystem
 				return;
 			}
 
-			Contributor con = await CTRS.Contributors.GetAsync(args.Player.User.ID);
-			if (con == null)
+			Contributor con;
+			if (!args.Player.IsAuthenticated() || (con = await CTRS.Contributors.GetAsync(args.Player.User.ID)) == null)
 			{
 				args.Player.SendInfoMessage($"{Tag} You must be a contributor to use this command. Find out how to contribute to the server here: "
 					+ CTRS.Config.GetContributeURL());
-				args.Player.SendInfoMessage($"{Tag} If you've already sent a contribution, contact an administrator to receive your privileges.");
+				args.Player.SendInfoMessage($"{Tag} If you've already sent a contribution, use the /auth command to get started.");
 				return;
 			}
 
