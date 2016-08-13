@@ -47,7 +47,7 @@ namespace CTRSystem
 		{
 			if (player == null || player.User == null)
 				return false;
-			
+
 			return AddPlayer(player.User.ID);
 		}
 
@@ -105,12 +105,12 @@ namespace CTRSystem
 			if (c == null)
 				return LMReturnCode.UnloadedCredentials;
 
-			WebClient client = new WebClient();
-			client.Headers.Add("Accept-Language", " en-US,en;q=0.5");
-			client.Headers.Add("Accept-Encoding", "gzip, deflate");
-			client.Headers.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
-			client.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:46.0) Gecko/20100101 Firefox/46.0");
-			client.Headers.Add("Content-Type", "application/json;charset=UTF-8");
+			//WebClient client = new WebClient();
+			//client.Headers.Add("Accept-Language", " en-US,en;q=0.5");
+			//client.Headers.Add("Accept-Encoding", "gzip, deflate");
+			//client.Headers.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+			//client.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:46.0) Gecko/20100101 Firefox/46.0");
+			//client.Headers.Add("Content-Type", "application/json;charset=UTF-8");
 
 			var sb = new StringBuilder();
 			sb.Append(CTRS.Config.Xenforo.XenAPIURI ?? "http://sbplanet.co/forums/api.php");
@@ -144,21 +144,18 @@ namespace CTRSystem
 #endif
 			#endregion
 			string response = "";
-			try
+			using (WebClient client = new WebClient())
 			{
-				response = await client.DownloadStringTaskAsync(sb.ToString());
-			}
-			catch (WebException e)
-			{
-				using (WebResponse r = e.Response)
+				try
 				{
-					HttpWebResponse webr = (HttpWebResponse)r;
-					using (Stream data = r.GetResponseStream())
+					response = await client.DownloadStringTaskAsync(sb.ToString());
+				}
+				catch (WebException e)
+				{
+					using (HttpWebResponse r = (HttpWebResponse)e.Response)
+					using (var reader = new StreamReader(r.GetResponseStream()))
 					{
-						using (var reader = new StreamReader(data))
-						{
-							response = reader.ReadToEnd();
-						}
+						response = reader.ReadToEnd();
 					}
 				}
 			}
@@ -188,21 +185,18 @@ namespace CTRSystem
 				TShock.Log.ConsoleInfo("REQUESTING: " + sb.ToString());
 #endif
 				#endregion
-				try
+				using (WebClient client = new WebClient())
 				{
-					response = await client.DownloadStringTaskAsync(sb.ToString());
-				}
-				catch (WebException e)
-				{
-					using (WebResponse r = e.Response)
+					try
 					{
-						HttpWebResponse webr = (HttpWebResponse)r;
-						using (Stream data = r.GetResponseStream())
+						response = await client.DownloadStringTaskAsync(sb.ToString());
+					}
+					catch (WebException e)
+					{
+						using (HttpWebResponse r = (HttpWebResponse)e.Response)
+						using (var reader = new StreamReader(r.GetResponseStream()))
 						{
-							using (var reader = new StreamReader(data))
-							{
-								response = reader.ReadToEnd();
-							}
+							response = reader.ReadToEnd();
 						}
 					}
 				}

@@ -26,38 +26,20 @@ namespace CTRSystem
 	[ApiVersion(1, 23)]
 	public class CTRS : TerrariaPlugin
 	{
-		private static DateTime lastRefresh;
-		private static DateTime lastNotification;
+		private static Timer _tierUpdateTimer;
 
-		public override string Author
-		{
-			get { return "Enerdy"; }
-		}
+		public override string Author => "Enerdy";
 
-		public override string Description
-		{
-			get { return "Keeps track of server contributors and manages their privileges."; }
-		}
+		public override string Description => "Keeps track of server contributors and manages their privileges.";
 
-		public override string Name
-		{
-			get { return $"Contributions Track & Reward System ({SubVersion})"; }
-		}
+		public override string Name => $"Contributions Track & Reward System ({SubVersion})";
 
-		public override Version Version
-		{
-			get { return Assembly.GetExecutingAssembly().GetName().Version; }
-		}
+		public override Version Version => Assembly.GetExecutingAssembly().GetName().Version;
 
-		public string SubVersion
-		{
-			get { return "Welcome to the Multiverse"; }
-		}
+		public string SubVersion => "Welcome to the Multiverse";
 
 		public CTRS(Main game) : base(game)
 		{
-			lastRefresh = DateTime.Now;
-			lastNotification = DateTime.Now;
 			Order = 20001;
 		}
 
@@ -90,7 +72,7 @@ namespace CTRSystem
 				PlayerHooks.PlayerPermission -= OnPlayerPermission;
 				PlayerHooks.PlayerPostLogin -= OnLogin;
 				ServerApi.Hooks.GameInitialize.Deregister(this, OnInitialize);
-				ServerApi.Hooks.GameUpdate.Deregister(this, UpdateTiers);
+				//ServerApi.Hooks.GameUpdate.Deregister(this, UpdateTiers);
 				//ServerApi.Hooks.GameUpdate.Deregister(this, UpdateNotifications);
 				ServerApi.Hooks.ServerChat.Deregister(this, OnChat);
 
@@ -99,6 +81,9 @@ namespace CTRSystem
 					SEconomyPlugin.SEconomyLoaded -= SEconomyLoaded;
 					SEconomyPlugin.SEconomyUnloaded -= SEconomyUnloaded;
 				}
+
+				_tierUpdateTimer.Stop();
+				_tierUpdateTimer.Elapsed -= UpdateTiers;
 
 				for (int i = 0; i < Main.maxNetPlayers; i++)
 				{
@@ -116,7 +101,7 @@ namespace CTRSystem
 			PlayerHooks.PlayerPermission += OnPlayerPermission;
 			PlayerHooks.PlayerPostLogin += OnLogin;
 			ServerApi.Hooks.GameInitialize.Register(this, OnInitialize);
-			ServerApi.Hooks.GameUpdate.Register(this, UpdateTiers);
+			//ServerApi.Hooks.GameUpdate.Register(this, UpdateTiers);
 			//ServerApi.Hooks.GameUpdate.Register(this, UpdateNotifications);
 			ServerApi.Hooks.ServerChat.Register(this, OnChat);
 
@@ -282,6 +267,10 @@ namespace CTRSystem
 
 			#endregion
 
+			_tierUpdateTimer = new Timer(Config.TierRefreshMinutes * 60 * 1000);
+			_tierUpdateTimer.Elapsed += UpdateTiers;
+			_tierUpdateTimer.Start();
+
 			Contributors = new ContributorManager(Db);
 			CredentialHelper = new LoginManager();
 			Tiers = new TierManager(Db);
@@ -359,6 +348,11 @@ namespace CTRSystem
 		{
 			string path = Path.Combine(TShock.SavePath, "CTRSystem", "CTRS-Config.json");
 			Config = Config.Read(path);
+
+			if ((Config.TierRefreshMinutes * 60 * 1000) != _tierUpdateTimer.Interval)
+			{
+				_tierUpdateTimer.Interval = (Config.TierRefreshMinutes * 60 * 1000);
+			}
 
 			// Refetch all contributor data
 			Task.Run(() => Contributors.LoadCache());
@@ -456,68 +450,64 @@ namespace CTRSystem
 			//if ((DateTime.Now - lastNotification).TotalSeconds >= Config.NotificationCheckSeconds)
 			//{
 			//	lastNotification = DateTime.Now;
-				//foreach (TSPlayer player in TShock.Players.Where(p => p != null && p.Active && p.IsLoggedIn && p.User != null))
-				//{
-					//Contributor con = await Contributors.GetAsync(player.User.ID);
-					//Contributor con = Contributors.Get(player.User.ID);
-					if (player == null || con == null)
-						return;
+			//foreach (TSPlayer player in TShock.Players.Where(p => p != null && p.Active && p.IsLoggedIn && p.User != null))
+			//{
+			//Contributor con = await Contributors.GetAsync(player.User.ID);
+			//Contributor con = Contributors.Get(player.User.ID);
+			if (player == null || con == null)
+				return;
 
-					ContributorUpdates updates = 0;
-					await Tiers.UpgradeTier(con);
+			ContributorUpdates updates = 0;
+			await Tiers.UpgradeTier(con);
 
-					if ((con.Notifications & Notifications.Introduction) != Notifications.Introduction)
-					{
-						// Do Introduction message
-						foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatIntroduction(player, con)))
-						{
-							player.SendInfoMessage(s);
-						}
-						con.Notifications |= Notifications.Introduction;
-						updates |= ContributorUpdates.Notifications;
-					}
-					else if ((con.Notifications & Notifications.NewDonation) == Notifications.NewDonation)
-					{
-						// Do NewDonation message
-						foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatNewDonation(player, con, con.LastAmount)))
-						{
-							player.SendInfoMessage(s);
-						}
-						con.Notifications ^= Notifications.NewDonation;
-						updates |= ContributorUpdates.Notifications;
-					}
-					else if ((con.Notifications & Notifications.NewTier) == Notifications.NewTier)
-					{
-						// Do Tier Rank Up message
-						foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatNewTier(player, con, Tiers.Get(con.Tier))))
-						{
-							player.SendInfoMessage(s);
-						}
-						con.Notifications ^= Notifications.NewTier;
-						updates |= ContributorUpdates.Notifications;
-					}
+			if ((con.Notifications & Notifications.Introduction) != Notifications.Introduction)
+			{
+				// Do Introduction message
+				foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatIntroduction(player, con)))
+				{
+					player.SendInfoMessage(s);
+				}
+				con.Notifications |= Notifications.Introduction;
+				updates |= ContributorUpdates.Notifications;
+			}
+			else if ((con.Notifications & Notifications.NewDonation) == Notifications.NewDonation)
+			{
+				// Do NewDonation message
+				foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatNewDonation(player, con, con.LastAmount)))
+				{
+					player.SendInfoMessage(s);
+				}
+				con.Notifications ^= Notifications.NewDonation;
+				updates |= ContributorUpdates.Notifications;
+			}
+			else if ((con.Notifications & Notifications.NewTier) == Notifications.NewTier)
+			{
+				// Do Tier Rank Up message
+				foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatNewTier(player, con, Tiers.Get(con.Tier))))
+				{
+					player.SendInfoMessage(s);
+				}
+				con.Notifications ^= Notifications.NewTier;
+				updates |= ContributorUpdates.Notifications;
+			}
 
-					if (!await Contributors.UpdateAsync(con, updates) && Config.LogDatabaseErrors)
-						TShock.Log.ConsoleError("CTRS-DB: something went wrong while updating a contributor's notifications.");
-				//}
+			if (!await Contributors.UpdateAsync(con, updates) && Config.LogDatabaseErrors)
+				TShock.Log.ConsoleError("CTRS-DB: something went wrong while updating a contributor's notifications.");
+			//}
 			//}
 		}
 
-		void UpdateTiers(EventArgs e)
+		void UpdateTiers(object sender, ElapsedEventArgs e)
 		{
-			if ((DateTime.Now - lastRefresh).TotalMinutes >= Config.TierRefreshMinutes)
+			try
 			{
-				lastRefresh = DateTime.Now;
-				try
-				{
-					Tiers.Refresh();
-					TShock.Log.ConsoleInfo("CTRS: Refreshed tiers.");
-				}
-				catch (Exception ex)
-				{
-					TShock.Log.ConsoleError("CTRS: Exception thrown during tier refresh. Check logs for details.");
-					TShock.Log.Error(ex.ToString());
-				}
+				Tiers.Refresh();
+				TShock.Log.ConsoleInfo("CTRS: Refreshed tiers.");
+			}
+			catch (Exception ex)
+			{
+				TShock.Log.ConsoleError("CTRS: Exception thrown during tier refresh. Check logs for details.");
+				TShock.Log.Error(ex.ToString());
 			}
 		}
 	}

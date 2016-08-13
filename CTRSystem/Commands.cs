@@ -96,7 +96,9 @@ namespace CTRSystem
 
 				Credentials cred = CTRS.CredentialHelper.Get(args.Player);
 				if (cred == null)
+				{
 					CTRS.CredentialHelper.AddPlayer(args.Player);
+				}
 
 				bool update = CTRS.CredentialHelper.Update(args.Player, username, password);
 				#region DEBUG
@@ -104,7 +106,22 @@ namespace CTRSystem
 				TShock.Log.ConsoleInfo("AUTH UPDATE: " + update.ToString());
 #endif
 				#endregion
-				LMReturnCode response = await CTRS.CredentialHelper.Authenticate(args.Player);
+
+				LMReturnCode response;
+				try
+				{
+					response = await CTRS.CredentialHelper.Authenticate(args.Player);
+				}
+				catch (Exception ex)
+				{
+					// Catching the exception should hopefully prevent unknown outcomes from crashing the server
+					args.Player.SendErrorMessage("Something went wrong... contact an admin and try again later.");
+					TShock.Log.ConsoleError(
+						$"An error occurred while trying to authenticate player '{args.Player.Name}'. Exception message: {ex.Message}.");
+					TShock.Log.Error(ex.ToString());
+					return;
+				}
+
 				switch (response)
 				{
 					case LMReturnCode.Success:
