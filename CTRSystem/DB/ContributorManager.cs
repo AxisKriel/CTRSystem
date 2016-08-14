@@ -38,7 +38,7 @@ namespace CTRSystem.DB
 				new SqlColumn("LastDonation", MySqlDbType.Int64) { DefaultValue = null },
 				new SqlColumn("LastAmount", MySqlDbType.Float) { NotNull = true, DefaultValue = "0" },
 				new SqlColumn("Tier", MySqlDbType.Int32) { NotNull = true, DefaultValue = "1" },
-				new SqlColumn("ChatColor", MySqlDbType.Text) { NotNull = true, DefaultValue = "" },
+				new SqlColumn("ChatColor", MySqlDbType.VarChar) { Length = 11, DefaultValue = null },
 				new SqlColumn("Notifications", MySqlDbType.Int32) { NotNull = true, DefaultValue = "0" },
 				new SqlColumn("Settings", MySqlDbType.Int32) { NotNull = true, DefaultValue = "0" })))
 			{
