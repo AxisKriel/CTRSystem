@@ -363,12 +363,12 @@ namespace CTRSystem
 			if (!String.IsNullOrWhiteSpace(args.Parameters["date"]))
 				Int64.TryParse(args.Parameters["date"], out dateUnix);
 
-			Contributor con = CTRS.Contributors.Get(user.ID);
+			Contributor con = Task.Run(() => CTRS.Contributors.GetAsync(user.ID)).Result;
 			bool success = false;
 			if (con == null)
 			{
 				// Transactions must never be ignored. If the contributor doesn't exist, create it
-				con = new Contributor(user.ID);
+				con = new Contributor(user);
 				con.LastAmount = credits;
 				if (dateUnix > 0)
 					con.LastDonation = dateUnix.FromUnixTime();

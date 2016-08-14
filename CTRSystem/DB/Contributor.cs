@@ -64,6 +64,9 @@ namespace CTRSystem.DB
 		public Contributor(User user)
 		{
 			Accounts = new List<int> { user.ID };
+
+			// Force tier into the first one seeing as tier 0 causes issues
+			Tier = 1;
 		}
 
 		/// <summary>
