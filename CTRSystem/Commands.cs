@@ -135,8 +135,8 @@ namespace CTRSystem
 						#endregion
 						if (success)
 						{
-							contributor.Initialize(args.Player.Index);
 							args.Player.Authenticate();
+							contributor.Initialize(args.Player.Index);
 							args.Player.SendSuccessMessage($"{Tag} You are now authenticated for the forum account '{username}'.");
 						}
 						else

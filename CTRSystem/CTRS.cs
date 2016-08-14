@@ -287,9 +287,10 @@ namespace CTRSystem
 				// Timer Setup
 				if (con != null)
 				{
+					e.Player.Authenticate();
+
 					// Start the timer
 					con.Initialize(e.Player.Index);
-					e.Player.Authenticate();
 				}
 			}
 			catch
