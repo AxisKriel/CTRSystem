@@ -52,7 +52,7 @@ namespace CTRSystem.DB
 				// This needs to be included in the table creation query
 				db.Query($@"ALTER TABLE {CTRS.Config.ContributorAccountsTableName}
 							ADD FOREIGN KEY (ContributorID)
-							REFERENCES {CTRS.Config.ContributorTableName}(ID);");
+							REFERENCES {CTRS.Config.ContributorTableName} (ID);");
 				TShock.Log.ConsoleInfo($"CTRS: created table '{CTRS.Config.ContributorAccountsTableName}'");
 			}
 

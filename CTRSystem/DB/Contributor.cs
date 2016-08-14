@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Timers;
 using CTRSystem.Extensions;
 using TShockAPI;
+using TShockAPI.DB;
 
 namespace CTRSystem.DB
 {
@@ -45,33 +46,24 @@ namespace CTRSystem.DB
 		public Settings Settings { get; set; }
 
 		/// <summary>
-		/// Local-only variable used to keep the contributor's data synced.
+		/// Initializes a new instance of the <see cref="Contributor"/> class with the given
+		/// <paramref name="contributorID"/>. Used when loading data from a database.
 		/// </summary>
-		//public bool Synced { get; set; }
-
+		/// <param name="contributorID">The contributor ID in the database.</param>
 		public Contributor(int contributorID)
 		{
 			Accounts = new List<int>();
 			ID = contributorID;
 		}
 
-		public Contributor(IEnumerable<int> accounts)
+		/// <summary>
+		/// Initializes a new instance of the <see cref="Contributor"/> class from the given
+		/// <paramref name="user"/> account.
+		/// </summary>
+		/// <param name="user">The user account to be registered to this contributor.</param>
+		public Contributor(User user)
 		{
-			Accounts = new List<int>(accounts);
-		}
-
-		public static Contributor Parse(params string[] accounts)
-		{
-			List<int> parsed = new List<int>();
-			int userID;
-			for (int i = 0; i < accounts.Length; i++)
-			{
-				if (Int32.TryParse(accounts[i], out userID))
-				{
-					parsed.Add(userID);
-				}
-			}
-			return new Contributor(parsed.ToArray());
+			Accounts = new List<int> { user.ID };
 		}
 
 		/// <summary>

@@ -240,7 +240,7 @@ namespace CTRSystem
 						if (contributor == null)
 						{
 							// Add a new contributor
-							contributor = new Contributor(player.User.ID);
+							contributor = new Contributor(player.User);
 							contributor.XenforoID = Convert.ToInt32(dict["user_id"]);
 							success = await CTRS.Contributors.AddAsync(contributor);
 						}
