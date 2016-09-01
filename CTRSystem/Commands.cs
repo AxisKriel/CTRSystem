@@ -448,7 +448,7 @@ namespace CTRSystem
 					con.LastDonation = dateUnix.FromUnixTime();
 				con.Tier = 1;
 				con.TotalCredits = credits;
-				success = CTRS.Contributors.Add(con);
+				success = Task.Run(() => CTRS.Contributors.AddAsync(con)).Result;
 				if (!success)
 				{
 					TShock.Log.ConsoleInfo($"CTRS-WARNING: Failed to register contribution made by forum user ID [{userID}]!");

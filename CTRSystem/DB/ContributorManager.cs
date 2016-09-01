@@ -91,7 +91,6 @@ namespace CTRSystem.DB
 				{
 					try
 					{
-						_cache.Add(contributor);
 						if (db.Query(query,
 							contributor.TotalCredits,
 							contributor.LastDonation.ToUnixTime(),
@@ -100,22 +99,23 @@ namespace CTRSystem.DB
 							contributor.Notifications,
 							contributor.Settings) == 1)
 						{
-							int contributorID;
 							using (var result = db.QueryReader("SELECT LAST_INSERT_ID() AS ContributorID;"))
 							{
 								if (result.Read())
 								{
-									contributorID = result.Get<int>("ContributorID");
+									contributor.ID = result.Get<int>("ContributorID");
 								}
 								else
 								{
 									return false;
 								}
 							}
+
+							_cache.Add(contributor);
 							for (int i = 0; i < contributor.Accounts.Count; i++)
 							{
 								if (db.Query($"INSERT INTO {CTRS.Config.ContributorAccountsTableName} (UserID, ContributorID) VALUES (@0, @1);",
-										contributor.Accounts[i], contributorID) != 1)
+										contributor.Accounts[i], contributor.ID) != 1)
 								{
 									return false;
 								}
@@ -157,7 +157,6 @@ namespace CTRSystem.DB
 					{
 						try
 						{
-							_cache.Add(contributor);
 							if (db.Query(query,
 								contributor.XenforoID.Value,
 								contributor.TotalCredits,
@@ -167,22 +166,23 @@ namespace CTRSystem.DB
 								contributor.Notifications,
 								contributor.Settings) == 1)
 							{
-								int contributorID;
 								using (var result = db.QueryReader("SELECT LAST_INSERT_ID() AS ContributorID;"))
 								{
 									if (result.Read())
 									{
-										contributorID = result.Get<int>("ContributorID");
+										contributor.ID = result.Get<int>("ContributorID");
 									}
 									else
 									{
 										return false;
 									}
 								}
+
+								_cache.Add(contributor);
 								for (int i = 0; i < contributor.Accounts.Count; i++)
 								{
 									if (db.Query($"INSERT INTO {CTRS.Config.ContributorAccountsTableName} (UserID, ContributorID) VALUES (@0, @1);",
-											contributor.Accounts[i], contributorID) != 1)
+											contributor.Accounts[i], contributor.ID) != 1)
 									{
 										return false;
 									}
@@ -195,7 +195,7 @@ namespace CTRSystem.DB
 						{
 							if (CTRS.Config.LogDatabaseErrors)
 							{
-								TShock.Log.ConsoleError($"CTRS-DB: Unable to add contributor UserID:{contributor.Accounts[0]}\nMessage: " + ex.Message);
+								TShock.Log.ConsoleError($"CTRS-DB: Unable to add contributor with xenforoID:{contributor.XenforoID.Value}\nMessage: " + ex.Message);
 								TShock.Log.Error(ex.ToString());
 							}
 							return false;
