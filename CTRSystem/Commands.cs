@@ -412,7 +412,7 @@ namespace CTRSystem
 		/// <summary>
 		/// This is the REST Request route used by Xenforo's AD Credit payment processor.
 		/// </summary>
-		[Route("/ctrs/v2/transaction")]
+		[Route("/ctrs/v2/transaction/{user_id}")]
 		[Permission(Permissions.RestTransaction)]
 		[Verb("user_id", "The database ID of the Xenforo user account that made the purchase.", typeof(Int32))]
 		[Noun("credits", true, "The amount of credits to transfer.", typeof(Int32))]

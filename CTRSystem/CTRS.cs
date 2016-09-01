@@ -230,7 +230,7 @@ namespace CTRSystem
 			TShock.RestApi.Register(new SecureRestCommand("/ctrs/transaction", Commands.RestNewTransaction, Permissions.RestTransaction));
 			TShock.RestApi.Register(new SecureRestCommand("/ctrs/update", Commands.RestUpdateContributors, Permissions.RestTransaction));
 
-			TShock.RestApi.Register(new SecureRestCommand("/ctrs/v2/transaction", Commands.RestNewTransactionV2, Permissions.RestTransaction));
+			TShock.RestApi.Register(new SecureRestCommand("/ctrs/v2/transaction/{user_id}", Commands.RestNewTransactionV2, Permissions.RestTransaction));
 
 			#endregion
 
