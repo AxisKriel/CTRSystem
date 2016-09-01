@@ -442,7 +442,8 @@ namespace CTRSystem
 			if (con == null)
 			{
 				// Transactions must never be ignored. If the contributor doesn't exist, create it
-				con = new Contributor(userID);
+				con = new Contributor(0);
+				con.XenforoID = userID;
 				con.LastAmount = credits;
 				if (dateUnix > 0)
 					con.LastDonation = dateUnix.FromUnixTime();
