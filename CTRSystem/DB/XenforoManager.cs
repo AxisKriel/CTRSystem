@@ -65,7 +65,7 @@ namespace CTRSystem.DB
 		public async Task<float> GetContributorCredits(Contributor contributor)
 		{
 			// Only works if the contributor has linked their Xenforo account to their TShock account
-			if (!contributor.XenforoID.HasValue || contributor.Accounts.Count == 0)
+			if (!contributor.XenforoId.HasValue || contributor.Accounts.Count == 0)
 				return 0f;
 
 			// Note: Currently, Xenforo will only store the first account to successfully authenticate

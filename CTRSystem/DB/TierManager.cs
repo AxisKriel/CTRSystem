@@ -171,20 +171,28 @@ namespace CTRSystem.DB
 			});
 		}
 
-		public async Task UpgradeTier(Contributor contributor)
+		public async Task UpgradeTier(Contributor contributor, bool suppressNotifications = false)
 		{
-			if ((contributor.Notifications & Notifications.TierUpdate) == Notifications.TierUpdate)
+			if (suppressNotifications
+				|| (contributor.Notifications & Notifications.TierUpdate) == Notifications.TierUpdate)
 			{
 				ContributorUpdates updates = 0;
 				Tier tier = await GetByCreditsAsync(contributor.TotalCredits);
 				if (contributor.Tier != tier.ID)
 				{
 					contributor.Tier = tier.ID;
-					contributor.Notifications |= Notifications.NewTier;
+
+					// Don't touch notifications on suppress
+					if (!suppressNotifications)
+					{
+						contributor.Notifications |= Notifications.NewTier;
+						contributor.Notifications ^= Notifications.TierUpdate;
+						updates |= ContributorUpdates.Notifications;
+					}
+
 					updates |= ContributorUpdates.Tier;
 				}
-				contributor.Notifications ^= Notifications.TierUpdate;
-				updates |= ContributorUpdates.Notifications;
+
 
 				if (!await CTRS.Contributors.UpdateAsync(contributor, updates))
 					TShock.Log.ConsoleError("CTRS-DB: something went wrong while updating a contributor's notifications.");

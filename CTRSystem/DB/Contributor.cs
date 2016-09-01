@@ -7,22 +7,30 @@ using System.Timers;
 using CTRSystem.Extensions;
 using TShockAPI;
 using TShockAPI.DB;
+using CTRSystem.Configuration;
 
 namespace CTRSystem.DB
 {
 	public class Contributor
 	{
+		private TSPlayer _receiver;
+
 		/// <summary>
-		/// Contributor ID used internally for storage and loading.
+		/// The key used when storing a contributor object as data.
 		/// </summary>
-		public int ID { get; set; }
+		public const string DataKey = "CTRS_Con";
+
+		/// <summary>
+		/// Contributor Id used internally for storage and loading.
+		/// </summary>
+		public int Id { get; set; }
 
 		/// <summary>
 		/// List of user account IDs authenticated with this contributor object.
 		/// </summary>
 		public List<int> Accounts { get; set; }
 
-		public int? XenforoID { get; set; }
+		public int? XenforoId { get; set; }
 
 		public float TotalCredits { get; set; }
 
@@ -47,13 +55,14 @@ namespace CTRSystem.DB
 
 		/// <summary>
 		/// Initializes a new instance of the <see cref="Contributor"/> class with the given
-		/// <paramref name="contributorID"/>. Used when loading data from a database.
+		/// <paramref name="contributorId"/>.
 		/// </summary>
-		/// <param name="contributorID">The contributor ID in the database.</param>
-		public Contributor(int contributorID)
+		/// <param name="contributorId">The contributor ID in the database.</param>
+		public Contributor(int contributorId)
 		{
 			Accounts = new List<int>();
-			ID = contributorID;
+			Id = contributorId;
+			Tier = 1;
 		}
 
 		/// <summary>
@@ -61,59 +70,98 @@ namespace CTRSystem.DB
 		/// <paramref name="user"/> account.
 		/// </summary>
 		/// <param name="user">The user account to be registered to this contributor.</param>
-		public Contributor(User user)
+		public Contributor(User user) : this(0)
 		{
-			Accounts = new List<int> { user.ID };
-
-			// Force tier into the first one seeing as tier 0 causes issues
-			Tier = 1;
+			Accounts.Add(user.ID);
 		}
 
 		/// <summary>
-		/// Initializes all active user accounts.
+		///  Stop listening to events. Used when disposing of this contributor object.
 		/// </summary>
-		public void InitializeAll()
+		public void Unlisten()
 		{
-			if (Accounts.Count > 0)
+			CTRS.Contributors.ContributorUpdate -= OnUpdate;
+			CTRS.Contributors.Transaction -= OnTransaction;
+		}
+
+		/// <summary>
+		/// Start listening to contributor related events fired by various contribution modules.
+		/// </summary>
+		/// <param name="player">If set, will send notification messages to a player whenever possible.</param>
+		public void Listen(TSPlayer player = null)
+		{
+			_receiver = player;
+
+			CTRS.Contributors.ContributorUpdate += OnUpdate;
+			CTRS.Contributors.Transaction += OnTransaction;
+		}
+
+		public async void OnTransaction(object sender, TransactionEventArgs e)
+		{
+			if (e.ContributorId == Id)
 			{
-				TShock.Players.Where(p => p != null && p.Active
-				&& p.IsLoggedIn && Accounts.Contains(p.User.ID)).ForEach(p =>
+				LastAmount = e.Credits;
+				if (e.Date.HasValue)
+					LastDonation = e.Date.Value;
+				TotalCredits += e.Credits;
+
+				// If the player is online, notify them about the transaction
+				foreach (string s in Texts.SplitIntoLines(
+					CTRS.Config.Texts.FormatNewDonation(_receiver, this, LastAmount)))
 				{
-					Initialize(p.Index);
-				});
+					_receiver.SendInfoMessage(s);
+				}
+
+				// Check for tier upgrades
+				int oldTier = Tier;
+				await CTRS.Tiers.UpgradeTier(this, true);
+				if (Tier != oldTier)
+				{
+					// Delay the message according to the config
+					await Task.Delay(CTRS.Config.NotificationCheckSeconds);
+
+					foreach (string s in Texts.SplitIntoLines(
+						CTRS.Config.Texts.FormatNewTier(_receiver, this, CTRS.Tiers.Get(Tier))))
+					{
+						_receiver.SendInfoMessage(s);
+					}
+				}
+
+				// Suppress notifications from being set on the database
+				e.SuppressNotifications = true;
 			}
 		}
 
-		/// <summary>
-		/// Initializes the contributor object for a given player.
-		/// </summary>
-		public void Initialize(int playerID)
+		public void OnUpdate(object sender, ContributorUpdateEventArgs e)
 		{
-			if (playerID < 0 || playerID > Terraria.Main.maxNetPlayers - 1)
-				return;
-
-			if (TShock.Players[playerID] == null)
-				throw new NullReferenceException($"player slot {playerID} was null");
-
-			if (!TShock.Players[playerID].Active || !TShock.Players[playerID].IsLoggedIn || !TShock.Players[playerID].IsAuthenticated())
-				return;
-
-			if (CTRS.Timers[playerID] != null && CTRS.Timers[playerID].Enabled)
+			if (e.ContributorId == Id)
 			{
-				// Stop the timer in case it was already running
-				CTRS.Timers[playerID].Stop();
+				if ((e.Updates & ContributorUpdates.XenforoID) == ContributorUpdates.XenforoID)
+					XenforoId = e.XenforoId;
+				if ((e.Updates & ContributorUpdates.TotalCredits) == ContributorUpdates.TotalCredits)
+					TotalCredits = e.TotalCredits;
+				if ((e.Updates & ContributorUpdates.LastDonation) == ContributorUpdates.LastDonation)
+				{
+					// Todo: trigger Transaction event here or elsewhere
+					LastDonation = e.LastDonation;
+				}
+				if ((e.Updates & ContributorUpdates.LastAmount) == ContributorUpdates.LastAmount)
+					LastAmount = e.LastAmount;
+				if ((e.Updates & ContributorUpdates.Tier) == ContributorUpdates.Tier)
+				{
+					// Todo: trigger TierUpgrade event here or elsewhere
+					Tier = e.Tier;
+				}
+				if ((e.Updates & ContributorUpdates.ChatColor) == ContributorUpdates.ChatColor)
+					ChatColor = e.ChatColor;
+				if ((e.Updates & ContributorUpdates.Notifications) == ContributorUpdates.Notifications)
+				{
+					// Todo: maybe make a Notifications manager to have events for all of those?
+					Notifications = e.Notifications;
+				}
+				if ((e.Updates & ContributorUpdates.Settings) == ContributorUpdates.Settings)
+					Settings = e.Settings;
 			}
-
-			CTRS.Timers[playerID] = new Timer(CTRS.Config.NotificationDelaySeconds * 1000);
-			CTRS.Timers[playerID].Elapsed += async (object sender, ElapsedEventArgs args) =>
-			{
-				if (CTRS.Timers[playerID].Interval != CTRS.Config.NotificationCheckSeconds * 1000)
-					CTRS.Timers[playerID].Interval = CTRS.Config.NotificationCheckSeconds * 1000;
-
-				// Do Update Notifications
-				await CTRS.UpdateNotifications(TShock.Players[playerID], this);
-			};
-			CTRS.Timers[playerID].Start();
 		}
 	}
 }

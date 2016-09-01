@@ -12,6 +12,23 @@ using System.IO;
 
 namespace CTRSystem
 {
+	public class AuthResult
+	{
+		public Contributor Contributor { get; private set; }
+
+		public LMReturnCode Code { get; private set; }
+
+		public AuthResult(LMReturnCode code)
+		{
+			Code = code;
+		}
+
+		public AuthResult(Contributor contributor) : this(LMReturnCode.Success)
+		{
+			Contributor = contributor;
+		}
+	}
+
 	public enum LMReturnCode
 	{
 		Success = 0,
@@ -28,16 +45,20 @@ namespace CTRSystem
 	public class LoginManager
 	{
 		/// <summary>
-		/// Authenticates a tshock user to a Xenforo forum account.
+		/// Authenticates an <see cref="User"/> to a Xenforo forum account and returns the <see cref="Contributor"/>
+		/// if the authentication succeeds.
 		/// </summary>
 		/// <param name="user">The Xenforo account name.</param>
 		/// <param name="credentials">The Xenforo account password.</param>
-		/// <returns>A task with a <see cref="LMReturnCode"/> based on the authentication result.</returns>
-		public async Task<LMReturnCode> Authenticate(User user, Credentials credentials)
+		/// <returns>
+		/// A task with the <see cref="AuthResult"/> and a contributor object. The contributor is only defined
+		/// if the authentication succeeds.
+		/// </returns>
+		public async Task<AuthResult> Authenticate(User user, Credentials credentials)
 		{
 			if (credentials == null)
 			{
-				return LMReturnCode.UnloadedCredentials;
+				return new AuthResult(LMReturnCode.UnloadedCredentials);
 			}
 
 			var sb = new StringBuilder();
@@ -52,7 +73,7 @@ namespace CTRSystem
 				TShock.Log.ConsoleInfo("AUTH ERROR: {Username} was null");
 #endif
 				#endregion
-				return LMReturnCode.EmptyParameter;
+				return new AuthResult(LMReturnCode.EmptyParameter);
 			}
 			sb.Append("&username=" + credentials.Username);
 			if (String.IsNullOrEmpty(credentials.Password))
@@ -62,7 +83,7 @@ namespace CTRSystem
 				TShock.Log.ConsoleInfo("AUTH ERROR: {Password} was null");
 #endif
 				#endregion
-				return LMReturnCode.EmptyParameter;
+				return new AuthResult(LMReturnCode.EmptyParameter);
 			}
 			sb.Append("&password=" + credentials.Password);
 
@@ -136,7 +157,7 @@ namespace CTRSystem
 				#endregion
 				dict = JsonConvert.DeserializeObject<Dictionary<string, object>>(response);
 				if (!dict.ContainsKey("user_id"))
-					return LMReturnCode.UserNotFound;
+					return new AuthResult(LMReturnCode.UserNotFound);
 				else
 				{
 					// Check if the user is a contributor
@@ -155,13 +176,15 @@ namespace CTRSystem
 					}
 					if (!CTRS.Config.Xenforo.ContributorForumGroupIDs.Intersect(groups).Any())
 					{
-						return LMReturnCode.UserNotAContributor;
+						return new AuthResult(LMReturnCode.UserNotAContributor);
 					}
 
-					Contributor contributor = await CTRS.Contributors.GetByXenforoIDAsync(Convert.ToInt32(dict["user_id"]));
+					Contributor contributor =
+						await CTRS.Contributors.GetByXenforoIdAsync(Convert.ToInt32(dict["user_id"]));
 					if (contributor == null)
 					{
-						// Attempt to find contributor by user ID in the event a transaction was logged for an unexistant contributor account
+						/* Attempt to find contributor by user ID in the event a transaction
+						 * was logged for an unexistant contributor account */
 						contributor = await CTRS.Contributors.GetAsync(user.ID);
 
 						bool success = false;
@@ -169,41 +192,41 @@ namespace CTRSystem
 						{
 							// Add a new contributor
 							contributor = new Contributor(user);
-							contributor.XenforoID = Convert.ToInt32(dict["user_id"]);
+							contributor.XenforoId = Convert.ToInt32(dict["user_id"]);
 							success = await CTRS.Contributors.AddAsync(contributor);
 						}
 						else
 						{
 							// Set XenforoID for an existing contributor
-							contributor.XenforoID = Convert.ToInt32(dict["user_id"]);
+							contributor.XenforoId = Convert.ToInt32(dict["user_id"]);
 							success = await CTRS.Contributors.UpdateAsync(contributor, ContributorUpdates.XenforoID);
 						}
 
 						if (success)
-							return LMReturnCode.Success;
+							return new AuthResult(contributor);
 						else
-							return LMReturnCode.DatabaseError;
+							return new AuthResult(LMReturnCode.DatabaseError);
 					}
 					else
 					{
 						// Check account limit
 						if (CTRS.Config.AccountLimit > 0 && contributor.Accounts.Count >= CTRS.Config.AccountLimit)
 						{
-							return LMReturnCode.AccountLimitReached;
+							return new AuthResult(LMReturnCode.AccountLimitReached);
 						}
 
-						if (await CTRS.Contributors.AddAccountAsync(contributor.ID, user.ID))
+						if (await CTRS.Contributors.AddAccountAsync(contributor.Id, user.ID))
 						{
 							contributor.Accounts.Add(user.ID);
-							return LMReturnCode.Success;
+							return new AuthResult(contributor);
 						}
 						else
-							return LMReturnCode.DatabaseError;
+							return new AuthResult(LMReturnCode.DatabaseError);
 					}
 				}
 			}
 			else
-				return (LMReturnCode)Convert.ToInt32((long)dict["error"]);
+				return new AuthResult((LMReturnCode)Convert.ToInt32((long)dict["error"]));
 		}
 	}
 

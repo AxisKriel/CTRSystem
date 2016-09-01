@@ -51,8 +51,6 @@ namespace CTRSystem
 
 		public static TierManager Tiers { get; private set; }
 
-		public static Timer[] Timers { get; private set; }
-
 		public static XenforoManager XenforoUsers { get; private set; }
 
 		public static Version PublicVersion
@@ -64,14 +62,11 @@ namespace CTRSystem
 		{
 			if (disposing)
 			{
-				//PlayerHooks.PlayerChat -= OnChat;
 				GeneralHooks.ReloadEvent -= OnReload;
 				PlayerHooks.PlayerLogout -= OnLogout;
 				PlayerHooks.PlayerPermission -= OnPlayerPermission;
 				PlayerHooks.PlayerPostLogin -= OnLogin;
 				ServerApi.Hooks.GameInitialize.Deregister(this, OnInitialize);
-				//ServerApi.Hooks.GameUpdate.Deregister(this, UpdateTiers);
-				//ServerApi.Hooks.GameUpdate.Deregister(this, UpdateNotifications);
 				ServerApi.Hooks.ServerChat.Deregister(this, OnChat);
 
 				if (SEconomyPlugin.Instance != null)
@@ -82,25 +77,16 @@ namespace CTRSystem
 
 				_tierUpdateTimer.Stop();
 				_tierUpdateTimer.Elapsed -= UpdateTiers;
-
-				for (int i = 0; i < Main.maxNetPlayers; i++)
-				{
-					if (Timers[i] != null && Timers[i].Enabled)
-						Timers[i].Stop();
-				}
 			}
 		}
 
 		public override void Initialize()
 		{
-			//PlayerHooks.PlayerChat += OnChat;
 			GeneralHooks.ReloadEvent += OnReload;
-			PlayerHooks.PlayerLogout += OnLogout;
 			PlayerHooks.PlayerPermission += OnPlayerPermission;
 			PlayerHooks.PlayerPostLogin += OnLogin;
+			PlayerHooks.PlayerLogout += OnLogout;
 			ServerApi.Hooks.GameInitialize.Register(this, OnInitialize);
-			//ServerApi.Hooks.GameUpdate.Register(this, UpdateTiers);
-			//ServerApi.Hooks.GameUpdate.Register(this, UpdateNotifications);
 			ServerApi.Hooks.ServerChat.Register(this, OnChat);
 
 			if (SEconomyPlugin.Instance != null)
@@ -125,7 +111,7 @@ namespace CTRSystem
 				return;
 
 			var player = TShock.Players[e.Who];
-			if (player == null || !player.Active || !player.IsLoggedIn || !player.IsAuthenticated())
+			if (player == null || !player.Active || !player.IsLoggedIn || !player.ContainsData(Contributor.DataKey))
 				return;
 
 			if (e.Text.Length > 500)
@@ -143,12 +129,7 @@ namespace CTRSystem
 			// At this point, ChatAboveHeads is not supported, but it could be a thing in the future
 			if (!TShock.Config.EnableChatAboveHeads)
 			{
-				Contributor con = Contributors.Get(player.User.ID);
-				if (con == null)
-					return;
-
-				// Why are we hardcoding tiers if we're then fetching it here by totalcredits every time? (no longer force-fetching)
-				//Tier tier = Tiers.GetByCredits(con.TotalCredits);
+				Contributor con = player.GetData<Contributor>(Contributor.DataKey);
 				Tier tier = Tiers.Get(con.Tier);
 
 				/* Contributor chat format:
@@ -160,10 +141,9 @@ namespace CTRSystem
 					{5} - tier shortname
 					{6} - tier name
 					{7} - webID
-
 				 */
 				var text = String.Format(Config.ContributorChatFormat, player.Group.Name, player.Group.Prefix, player.Name,
-					player.Group.Suffix, e.Text, tier.ShortName ?? "", tier.Name ?? "", con.XenforoID ?? -1);
+					player.Group.Suffix, e.Text, tier.ShortName ?? "", tier.Name ?? "", con.XenforoId ?? -1);
 				PlayerHooks.OnPlayerChat(player, e.Text, ref text);
 				Color? color = con.ChatColor;
 				if (!color.HasValue)
@@ -273,7 +253,6 @@ namespace CTRSystem
 			Contributors = new ContributorManager(Db);
 			CredentialHelper = new LoginManager();
 			Tiers = new TierManager(Db);
-			Timers = new Timer[Main.maxNetPlayers];
 			XenforoUsers = new XenforoManager(xfdb);
 		}
 
@@ -283,13 +262,16 @@ namespace CTRSystem
 			{
 				// Fetches the contributor from the database, updating the cache as needed
 				Contributor con = await Contributors.GetAsync(e.Player.User.ID);
-				// Timer Setup
+
 				if (con != null)
 				{
-					e.Player.Authenticate();
+					// Start listening to events
+					con.Listen(e.Player);
 
-					// Start the timer
-					con.Initialize(e.Player.Index);
+					// Store the contributor object
+					e.Player.SetData(Contributor.DataKey, con);
+
+					await UpdateNotifications(e.Player);
 				}
 			}
 			catch
@@ -300,40 +282,27 @@ namespace CTRSystem
 
 		void OnLogout(PlayerLogoutEventArgs e)
 		{
-			try
+			if (e.Player.ContainsData(Contributor.DataKey))
 			{
-				if (Timers[e.Player.Index] != null)
-				{
-					Timers[e.Player.Index].Stop();
-					Timers[e.Player.Index] = null;
-				}
-				e.Player.Authenticate(true);
+				// Remove the stored contributor object and stop listening to events
+				// Note: TSPlayer.RemoveData(string) returns the removed object
+				((Contributor)e.Player.RemoveData(Contributor.DataKey)).Unlisten();
 			}
-			catch
-			{
-				// Catch any exception that is thrown here to prevent pointless error messages
-			}
-
 		}
 
 		void OnPlayerPermission(PlayerPermissionEventArgs e)
 		{
 			// If the player isn't logged it, he's certainly not a contributor
-			if (e.Player == null || !e.Player.IsLoggedIn || e.Player.User == null || !e.Player.IsAuthenticated())
+			if (e.Player == null || !e.Player.IsLoggedIn || !e.Player.ContainsData(Contributor.DataKey))
 				return;
 
-			//Contributor con = await Contributors.GetAsync(e.Player.User.ID);
-			Contributor con = Contributors.Get(e.Player.User.ID);
-			if (con == null)
-				return;
-
+			Contributor con = e.Player.GetData<Contributor>(Contributor.DataKey);
 			#region DEBUG
 #if DEBUG
 			//TShock.Log.ConsoleInfo("[" + e.Player.Index + "] Checking permission for: " + e.Permission);
 #endif
 			#endregion
 
-			//Tier tier = await Tiers.GetAsync(con.Tier);
 			Tier tier = Tiers.Get(con.Tier);
 			e.Handled = tier.Permissions.HasPermission(e.Permission);
 			#region DEBUG
@@ -353,9 +322,6 @@ namespace CTRSystem
 			{
 				_tierUpdateTimer.Interval = (Config.TierRefreshMinutes * 60 * 1000);
 			}
-
-			// Refetch all contributor data
-			Task.Run(() => Contributors.LoadCache());
 
 			// Refresh tier data
 			Tiers.Refresh();
@@ -380,16 +346,21 @@ namespace CTRSystem
 		void MultiplyExp(object sender, PendingTransactionEventArgs e)
 		{
 			// Should only work with system accounts as this will also make the sender pay more currency
-			if (SEconomyPlugin.Instance != null && e.ToAccount != null && e.FromAccount != null && e.FromAccount.IsSystemAccount)
+			if (SEconomyPlugin.Instance != null
+				&& e.ToAccount != null
+				&& e.FromAccount != null
+				&& e.FromAccount.IsSystemAccount)
 			{
-				// Find the tshock user
-				var user = TShock.Users.GetUserByName(e.ToAccount.UserAccountName);
-				if (user == null)
+				// Find the player (note: could be troublesome if multiple login is enabled)
+				var player = (from p in TShock.Players
+							  where p.IsLoggedIn && p.User.Name == e.ToAccount.UserAccountName
+							  && p.ContainsData(Contributor.DataKey)
+							  select p).FirstOrDefault();
+
+				if (player == null)
 					return;
 
-				Contributor con = Contributors.Get(user.ID);
-				if (con == null)
-					return;
+				Contributor con = player.GetData<Contributor>(Contributor.DataKey);
 
 				// Get the tier, find the experience multiplier
 				Tier tier = Tiers.Get(con.Tier);
@@ -407,59 +378,24 @@ namespace CTRSystem
 			}
 		}
 
-		async void MultiplyExpAsync(object sender, PendingTransactionEventArgs e)
-		{
-			// Should only work with system accounts as this will also make the sender pay more currency
-			if (SEconomyPlugin.Instance != null && e.ToAccount != null && e.FromAccount != null && e.FromAccount.IsSystemAccount)
-			{
-				// Find the tshock user
-				var user = TShock.Users.GetUserByName(e.ToAccount.UserAccountName);
-				if (user == null)
-					return;
-
-				// Shouldn't have to do the db-check due to the on-login one
-				//Contributor con = await Contributors.GetAsync(user.ID);
-				Contributor con = Contributors.Get(user.ID);
-				if (con == null)
-					return;
-
-				// Get the tier, find the experience multiplier
-				Tier tier = await Tiers.GetAsync(con.Tier);
-				if (tier == null)
-				{
-					TShock.Log.ConsoleError($"CTRS: contributor {con.Accounts[0]} has an invalid tier ID! ({con.Tier})");
-					return;
-				}
-
-				// If TierUpdate is true, perform the update
-				// TODO: Just like on Player Permission, might be better to scrap those and just do a generalized check every x seconds
-				//await Tiers.UpgradeTier(con);
-
-				if (tier.ExperienceMultiplier != 1f)
-				{
-					// Multiply the amount of currency gained by the experience multiplier
-					e.Amount = new Money(Convert.ToInt64(e.Amount.Value * tier.ExperienceMultiplier));
-				}
-			}
-		}
-
 		#endregion
 
-		internal static async Task UpdateNotifications(TSPlayer player, Contributor con)
+		internal static async Task UpdateNotifications(TSPlayer player)
 		{
-			//if ((DateTime.Now - lastNotification).TotalSeconds >= Config.NotificationCheckSeconds)
-			//{
-			//	lastNotification = DateTime.Now;
-			//foreach (TSPlayer player in TShock.Players.Where(p => p != null && p.Active && p.IsLoggedIn && p.User != null))
-			//{
-			//Contributor con = await Contributors.GetAsync(player.User.ID);
-			//Contributor con = Contributors.Get(player.User.ID);
-			if (player == null || con == null)
+			if (player == null || !player.ContainsData(Contributor.DataKey))
 				return;
 
+			Contributor con = player.GetData<Contributor>(Contributor.DataKey);
+
 			ContributorUpdates updates = 0;
+
+			// Upgrade tier before anything else
 			await Tiers.UpgradeTier(con);
 
+			// Initial delay
+			await Task.Delay(Config.NotificationDelaySeconds * 1000);
+
+			// This should only occur once
 			if ((con.Notifications & Notifications.Introduction) != Notifications.Introduction)
 			{
 				// Do Introduction message
@@ -469,32 +405,44 @@ namespace CTRSystem
 				}
 				con.Notifications |= Notifications.Introduction;
 				updates |= ContributorUpdates.Notifications;
-			}
-			else if ((con.Notifications & Notifications.NewDonation) == Notifications.NewDonation)
-			{
-				// Do NewDonation message
-				foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatNewDonation(player, con, con.LastAmount)))
-				{
-					player.SendInfoMessage(s);
-				}
-				con.Notifications ^= Notifications.NewDonation;
-				updates |= ContributorUpdates.Notifications;
-			}
-			else if ((con.Notifications & Notifications.NewTier) == Notifications.NewTier)
-			{
-				// Do Tier Rank Up message
-				foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatNewTier(player, con, Tiers.Get(con.Tier))))
-				{
-					player.SendInfoMessage(s);
-				}
-				con.Notifications ^= Notifications.NewTier;
-				updates |= ContributorUpdates.Notifications;
+
+				// If there are more notifications in the pile, run the regular relay
+				if (con.Notifications != Notifications.Introduction)
+					await Task.Delay(Config.NotificationCheckSeconds * 1000);
 			}
 
-			if (!await Contributors.UpdateAsync(con, updates) && Config.LogDatabaseErrors)
+			// Regular notification loop (Notifications.Introduction is the regular state for the enum)
+			while (con.Notifications != Notifications.Introduction)
+			{
+				if ((con.Notifications & Notifications.NewDonation) == Notifications.NewDonation)
+				{
+					// Do NewDonation message
+					foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatNewDonation(player, con, con.LastAmount)))
+					{
+						player.SendInfoMessage(s);
+					}
+					con.Notifications ^= Notifications.NewDonation;
+					updates |= ContributorUpdates.Notifications;
+				}
+
+				else if ((con.Notifications & Notifications.NewTier) == Notifications.NewTier)
+				{
+					// Do Tier Rank Up message
+					foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatNewTier(player, con, Tiers.Get(con.Tier))))
+					{
+						player.SendInfoMessage(s);
+					}
+					con.Notifications ^= Notifications.NewTier;
+					updates |= ContributorUpdates.Notifications;
+				}
+
+				// If there are more notifications in the pile, run the regular relay
+				if (con.Notifications != Notifications.Introduction)
+					await Task.Delay(Config.NotificationCheckSeconds * 1000);
+			}
+
+			if (!await Contributors.UpdateAsync(con, updates, true) && Config.LogDatabaseErrors)
 				TShock.Log.ConsoleError("CTRS-DB: something went wrong while updating a contributor's notifications.");
-			//}
-			//}
 		}
 
 		void UpdateTiers(object sender, ElapsedEventArgs e)

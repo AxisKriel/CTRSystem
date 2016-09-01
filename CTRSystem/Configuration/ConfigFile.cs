@@ -49,9 +49,15 @@ namespace CTRSystem.Configuration
 
 		public bool RestrictCommands { get; set; } = false;
 
-		public int NotificationDelaySeconds { get; set; } = 10;
+		/// <summary>
+		/// Number of seconds to wait before sending the first notification message.
+		/// </summary>
+		public int NotificationDelaySeconds { get; set; } = 5;
 
-		public int NotificationCheckSeconds { get; set; } = 30;
+		/// <summary>
+		/// Number of seconds in between consecutive notification messages.
+		/// </summary>
+		public int NotificationCheckSeconds { get; set; } = 3;
 
 		public int TierRefreshMinutes { get; set; } = 30;
 

@@ -68,15 +68,16 @@
     <Compile Include="CTRS.cs" />
     <Compile Include="DB\Contributor.cs" />
     <Compile Include="DB\ContributorManager.cs" />
+    <Compile Include="DB\ContributorUpdateEventArgs.cs" />
     <Compile Include="DB\Enums.cs" />
     <Compile Include="DB\Tier.cs" />
     <Compile Include="DB\TierManager.cs" />
+    <Compile Include="DB\TransactionEventArgs.cs" />
     <Compile Include="DB\XenforoManager.cs" />
     <Compile Include="DB\XFUser.cs" />
     <Compile Include="Extensions\DateTimeExtensions.cs" />
     <Compile Include="Extensions\Int64Extensions.cs" />
     <Compile Include="Extensions\ListExtensions.cs" />
-    <Compile Include="Extensions\TSPlayerExtensions.cs" />
     <Compile Include="LoginManager.cs" />
     <Compile Include="Permissions.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

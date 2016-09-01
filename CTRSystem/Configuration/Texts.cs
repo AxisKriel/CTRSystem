@@ -66,7 +66,7 @@ namespace CTRSystem.Configuration
 			return String.Format(Info,
 				player.Name,
 				contributor.Accounts.Count == 0 ? "N/A" : String.Join(",", contributor.Accounts),
-				contributor.XenforoID.HasValue ? contributor.XenforoID.Value.ToString() : "N/A",
+				contributor.XenforoId.HasValue ? contributor.XenforoId.Value.ToString() : "N/A",
 				String.Format(CTRS.Config.CreditsFormat, (int)credits),
 				String.Format(CTRS.Config.CreditsFormat, (int)contributor.TotalCredits),
 				contributor.LastDonation == DateTime.MinValue ? "N/A" : contributor.LastDonation.ToString("d-MMM-yyyy"),
