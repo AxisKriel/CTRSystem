@@ -32,11 +32,9 @@ namespace CTRSystem
 
 		public override string Description => "Keeps track of server contributors and manages their privileges.";
 
-		public override string Name => $"Contributions Track & Reward System ({SubVersion})";
+		public override string Name => $"Contributions Track & Reward System";
 
 		public override Version Version => Assembly.GetExecutingAssembly().GetName().Version;
-
-		public string SubVersion => "Welcome to the Multiverse";
 
 		public CTRS(Main game) : base(game)
 		{
