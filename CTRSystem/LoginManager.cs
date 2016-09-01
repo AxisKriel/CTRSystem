@@ -27,97 +27,25 @@ namespace CTRSystem
 
 	public class LoginManager
 	{
-		private Dictionary<int, Credentials> activePlayers = new Dictionary<int, Credentials>();
-
-		public LoginManager()
+		/// <summary>
+		/// Authenticates a tshock user to a Xenforo forum account.
+		/// </summary>
+		/// <param name="user">The Xenforo account name.</param>
+		/// <param name="credentials">The Xenforo account password.</param>
+		/// <returns>A task with a <see cref="LMReturnCode"/> based on the authentication result.</returns>
+		public async Task<LMReturnCode> Authenticate(User user, Credentials credentials)
 		{
-
-		}
-
-		public bool AddPlayer(int userID)
-		{
-			if (activePlayers.ContainsKey(userID))
-				return false;
-
-			activePlayers.Add(userID, new Credentials());
-			return true;
-		}
-
-		public bool AddPlayer(TSPlayer player)
-		{
-			if (player == null || player.User == null)
-				return false;
-
-			return AddPlayer(player.User.ID);
-		}
-
-		public Credentials Get(int userID)
-		{
-			if (!activePlayers.ContainsKey(userID))
-				return null;
-			return activePlayers[userID];
-		}
-
-		public Credentials Get(TSPlayer player)
-		{
-			if (player == null || player.User == null)
-				return null;
-
-			return Get(player.User.ID);
-		}
-
-		public bool RemovePlayer(int userID)
-		{
-			return activePlayers.Remove(userID);
-		}
-
-		public bool RemovePlayer(TSPlayer player)
-		{
-			if (player == null || player.User == null)
-				return false;
-
-			return RemovePlayer(player.User.ID);
-		}
-
-		public bool Update(int userID, string username = null, string password = null)
-		{
-			if (!activePlayers.ContainsKey(userID))
-				return false;
-
-			if (username != null)
-				activePlayers[userID].Username = username;
-			if (password != null)
-				activePlayers[userID].Password = password;
-			return true;
-		}
-
-		public bool Update(TSPlayer player, string username = null, string password = null)
-		{
-			if (player == null || player.User == null)
-				return false;
-
-			return Update(player.User.ID, username, password);
-		}
-
-		public async Task<LMReturnCode> Authenticate(TSPlayer player)
-		{
-			Credentials c = Get(player);
-			if (c == null)
+			if (credentials == null)
+			{
 				return LMReturnCode.UnloadedCredentials;
-
-			//WebClient client = new WebClient();
-			//client.Headers.Add("Accept-Language", " en-US,en;q=0.5");
-			//client.Headers.Add("Accept-Encoding", "gzip, deflate");
-			//client.Headers.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
-			//client.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:46.0) Gecko/20100101 Firefox/46.0");
-			//client.Headers.Add("Content-Type", "application/json;charset=UTF-8");
+			}
 
 			var sb = new StringBuilder();
 			sb.Append(CTRS.Config.Xenforo.XenAPIURI ?? "http://sbplanet.co/forums/api.php");
 
 			// REQUEST: api.php?action=authenticate&username=USERNAME&password=PASSWORD
 			sb.Append("?action=authenticate");
-			if (String.IsNullOrEmpty(c.Username))
+			if (String.IsNullOrEmpty(credentials.Username))
 			{
 				#region DEBUG
 #if DEBUG
@@ -126,8 +54,8 @@ namespace CTRSystem
 				#endregion
 				return LMReturnCode.EmptyParameter;
 			}
-			sb.Append("&username=" + c.Username);
-			if (String.IsNullOrEmpty(c.Password))
+			sb.Append("&username=" + credentials.Username);
+			if (String.IsNullOrEmpty(credentials.Password))
 			{
 				#region DEBUG
 #if DEBUG
@@ -136,7 +64,7 @@ namespace CTRSystem
 				#endregion
 				return LMReturnCode.EmptyParameter;
 			}
-			sb.Append("&password=" + c.Password);
+			sb.Append("&password=" + credentials.Password);
 
 			#region DEBUG
 #if DEBUG
@@ -176,7 +104,7 @@ namespace CTRSystem
 				// REQUEST: api.php?action=getUser&hash=USERNAME:HASH
 				sb.Append("?action=getUser");
 				sb.Append("&hash=");
-				sb.Append(c.Username);
+				sb.Append(credentials.Username);
 				sb.Append(':');
 				sb.Append(hash);
 
@@ -234,13 +162,13 @@ namespace CTRSystem
 					if (contributor == null)
 					{
 						// Attempt to find contributor by user ID in the event a transaction was logged for an unexistant contributor account
-						contributor = await CTRS.Contributors.GetAsync(player.User.ID);
+						contributor = await CTRS.Contributors.GetAsync(user.ID);
 
 						bool success = false;
 						if (contributor == null)
 						{
 							// Add a new contributor
-							contributor = new Contributor(player.User);
+							contributor = new Contributor(user);
 							contributor.XenforoID = Convert.ToInt32(dict["user_id"]);
 							success = await CTRS.Contributors.AddAsync(contributor);
 						}
@@ -252,10 +180,7 @@ namespace CTRSystem
 						}
 
 						if (success)
-						{
-							RemovePlayer(player.User.ID);
 							return LMReturnCode.Success;
-						}
 						else
 							return LMReturnCode.DatabaseError;
 					}
@@ -264,14 +189,12 @@ namespace CTRSystem
 						// Check account limit
 						if (CTRS.Config.AccountLimit > 0 && contributor.Accounts.Count >= CTRS.Config.AccountLimit)
 						{
-							RemovePlayer(player.User.ID);
 							return LMReturnCode.AccountLimitReached;
 						}
 
-						if (await CTRS.Contributors.AddAccountAsync(contributor.ID, player.User.ID))
+						if (await CTRS.Contributors.AddAccountAsync(contributor.ID, user.ID))
 						{
-							contributor.Accounts.Add(player.User.ID);
-							RemovePlayer(player.User.ID);
+							contributor.Accounts.Add(user.ID);
 							return LMReturnCode.Success;
 						}
 						else
@@ -289,5 +212,11 @@ namespace CTRSystem
 		public string Username { get; set; }
 
 		public string Password { get; set; }
+
+		public Credentials(string username, string password)
+		{
+			Username = username;
+			Password = password;
+		}
 	}
 }

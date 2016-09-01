@@ -94,23 +94,10 @@ namespace CTRSystem
 				string username = args.Parameters[0];
 				string password = args.Parameters[1];
 
-				Credentials cred = CTRS.CredentialHelper.Get(args.Player);
-				if (cred == null)
-				{
-					CTRS.CredentialHelper.AddPlayer(args.Player);
-				}
-
-				bool update = CTRS.CredentialHelper.Update(args.Player, username, password);
-				#region DEBUG
-#if DEBUG
-				TShock.Log.ConsoleInfo("AUTH UPDATE: " + update.ToString());
-#endif
-				#endregion
-
 				LMReturnCode response;
 				try
 				{
-					response = await CTRS.CredentialHelper.Authenticate(args.Player);
+					response = await CTRS.CredentialHelper.Authenticate(args.Player.User, new Credentials(username, password));
 				}
 				catch (Exception ex)
 				{
