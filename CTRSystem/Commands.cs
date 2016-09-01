@@ -1,17 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using CTRSystem.Configuration;
 using CTRSystem.DB;
-using TShockAPI;
-using Rests;
-using TShockAPI.DB;
-using HttpServer;
-using System.Net;
 using CTRSystem.Extensions;
+using HttpServer;
+using Rests;
+using TShockAPI;
+using TShockAPI.DB;
 
 namespace CTRSystem
 {

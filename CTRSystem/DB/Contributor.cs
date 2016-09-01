@@ -1,13 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using System.Timers;
-using CTRSystem.Extensions;
+using CTRSystem.Configuration;
 using TShockAPI;
 using TShockAPI.DB;
-using CTRSystem.Configuration;
 
 namespace CTRSystem.DB
 {
