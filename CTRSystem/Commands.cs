@@ -409,6 +409,80 @@ namespace CTRSystem
 				return RestResponse("Transaction successful.");
 		}
 
+		/// <summary>
+		/// This is the REST Request route used by Xenforo's AD Credit payment processor.
+		/// </summary>
+		[Route("/ctrs/v2/transaction")]
+		[Permission(Permissions.RestTransaction)]
+		[Verb("user_id", "The database ID of the Xenforo user account that made the purchase.", typeof(Int32))]
+		[Noun("credits", true, "The amount of credits to transfer.", typeof(Int32))]
+		[Noun("date", true, "The date on which the original transaction was performed, as a Int64 unix timestamp.", typeof(Int64))]
+		[Token]
+		public static object RestNewTransactionV2(RestRequestArgs args)
+		{
+			int userID;
+
+			if (!Int32.TryParse(args.Verbs["user_id"], out userID))
+				return RestInvalidParam("user_id");
+
+			if (String.IsNullOrWhiteSpace(args.Parameters["credits"]))
+				return RestMissingParam("credits");
+
+			float credits;
+			if (!Single.TryParse(args.Parameters["credits"], out credits))
+				return RestInvalidParam("credits");
+
+			long dateUnix = 0;
+			if (!String.IsNullOrWhiteSpace(args.Parameters["date"]))
+				Int64.TryParse(args.Parameters["date"], out dateUnix);
+
+			Contributor con = Task.Run(() => CTRS.Contributors.GetByXenforoIDAsync(userID)).Result;
+			bool success = false;
+
+			if (con == null)
+			{
+				// Transactions must never be ignored. If the contributor doesn't exist, create it
+				con = new Contributor(userID);
+				con.LastAmount = credits;
+				if (dateUnix > 0)
+					con.LastDonation = dateUnix.FromUnixTime();
+				con.Tier = 1;
+				con.TotalCredits = credits;
+				success = CTRS.Contributors.Add(con);
+				if (!success)
+				{
+					TShock.Log.ConsoleInfo($"CTRS-WARNING: Failed to register contribution made by forum user ID [{userID}]!");
+				}
+			}
+			else
+			{
+				ContributorUpdates updates = 0;
+
+				con.LastAmount = credits;
+				updates |= ContributorUpdates.LastAmount;
+
+				if (dateUnix > 0)
+				{
+					con.LastDonation = dateUnix.FromUnixTime();
+					updates |= ContributorUpdates.LastDonation;
+				}
+
+				con.TotalCredits += credits;
+				updates |= ContributorUpdates.TotalCredits;
+
+				con.Notifications |= Notifications.NewDonation;
+				// Always prompt a tier update check here
+				con.Notifications |= Notifications.TierUpdate;
+				updates |= ContributorUpdates.Notifications;
+
+				success = CTRS.Contributors.Update(con, updates);
+			}
+			if (!success)
+				return RestError("Transaction was not registered properly.");
+			else
+				return RestResponse("Transaction successful.");
+		}
+
 		[Route("/ctrs/update")]
 		[Permission(Permissions.RestTransaction)]
 		[Token]

@@ -227,9 +227,10 @@ namespace CTRSystem
 				HelpText = "Connects your Xenforo account to your TShock account. Enter your forum credentials OR generate an auth code first by visiting your user control panel."
 			});
 
-			//TShock.RestApi.Register(new RestCommand("ctrs/transaction", Commands.RestNewTransaction));
 			TShock.RestApi.Register(new SecureRestCommand("/ctrs/transaction", Commands.RestNewTransaction, Permissions.RestTransaction));
 			TShock.RestApi.Register(new SecureRestCommand("/ctrs/update", Commands.RestUpdateContributors, Permissions.RestTransaction));
+
+			TShock.RestApi.Register(new SecureRestCommand("/ctrs/v2/transaction", Commands.RestNewTransactionV2, Permissions.RestTransaction));
 
 			#endregion
 
