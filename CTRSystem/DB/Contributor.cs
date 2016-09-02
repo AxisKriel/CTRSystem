@@ -137,24 +137,15 @@ namespace CTRSystem.DB
 				if ((e.Updates & ContributorUpdates.TotalCredits) == ContributorUpdates.TotalCredits)
 					TotalCredits = e.TotalCredits;
 				if ((e.Updates & ContributorUpdates.LastDonation) == ContributorUpdates.LastDonation)
-				{
-					// Todo: trigger Transaction event here or elsewhere
 					LastDonation = e.LastDonation;
-				}
 				if ((e.Updates & ContributorUpdates.LastAmount) == ContributorUpdates.LastAmount)
 					LastAmount = e.LastAmount;
 				if ((e.Updates & ContributorUpdates.Tier) == ContributorUpdates.Tier)
-				{
-					// Todo: trigger TierUpgrade event here or elsewhere
 					Tier = e.Tier;
-				}
 				if ((e.Updates & ContributorUpdates.ChatColor) == ContributorUpdates.ChatColor)
 					ChatColor = e.ChatColor;
 				if ((e.Updates & ContributorUpdates.Notifications) == ContributorUpdates.Notifications)
-				{
-					// Todo: maybe make a Notifications manager to have events for all of those?
 					Notifications = e.Notifications;
-				}
 				if ((e.Updates & ContributorUpdates.Settings) == ContributorUpdates.Settings)
 					Settings = e.Settings;
 			}
