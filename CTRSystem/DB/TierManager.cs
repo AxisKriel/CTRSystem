@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Data;
 using MySql.Data.MySqlClient;
 using TShockAPI;
 using TShockAPI.DB;
@@ -12,12 +12,17 @@ namespace CTRSystem.DB
 	public class TierManager
 	{
 		private IDbConnection db;
-		private List<Tier> _cache = new List<Tier>();
-		public List<Tier> Cache
-		{
-			get { return _cache; }
-		}
+		
+		/// <summary>
+		/// The list of all currently loaded contributor tiers.
+		/// </summary>
+		public List<Tier> Tiers { get; private set; }
 
+		/// <summary>
+		/// Initializes a new instance of the <see cref="TierManager"/> class.
+		/// Manages and caches <see cref="Tier"/> instances loaded from a database.
+		/// </summary>
+		/// <param name="db">The database connection to load data from and to which updates will be sent.</param>
 		public TierManager(IDbConnection db)
 		{
 			this.db = db;
@@ -39,19 +44,31 @@ namespace CTRSystem.DB
 			}
 
 			// Load all tiers to the cache
-			Task.Run(async () => _cache = await GetAllAsync());
+			Task.Run(async () => Tiers = await GetAllAsync());
 		}
 
+		/// <summary>
+		/// Gets a tier from the tier list.
+		/// </summary>
+		/// <param name="id">The tier ID.</param>
+		/// <returns>A tier with a matching ID, or null if none is found.</returns>
 		public Tier Get(int id)
 		{
-			return _cache.Find(t => t.ID == id);
+			return Tiers.Find(t => t.ID == id);
 		}
 
+		/// <summary>
+		/// Asynchronously gets a tier from the tier list.
+		/// If a tier isn't found, attempts to fetch one from the database.
+		/// </summary>
+		/// <param name="id">The tier ID.</param>
+		/// <exception cref="TierNotFoundException">Thrown if the database query returns no results.</exception>
+		/// <returns>A tier with a matching ID.</returns>
 		public Task<Tier> GetAsync(int id)
 		{
 			return Task.Run(() =>
 			{
-				Tier tier = _cache.Find(t => t.ID == id);
+				Tier tier = Tiers.Find(t => t.ID == id);
 				if (tier != null)
 					return tier;
 				else
@@ -70,7 +87,7 @@ namespace CTRSystem.DB
 								Permissions = result.Get<string>("Permissions").Split(',').ToList(),
 								ExperienceMultiplier = result.Get<float>("ExperienceMultiplier")
 							};
-							_cache.Add(tier);
+							Tiers.Add(tier);
 							return tier;
 						}
 						else
@@ -80,11 +97,18 @@ namespace CTRSystem.DB
 			});
 		}
 
+		/// <summary>
+		/// Asynchronously gets a tier from the tier list.
+		/// If a tier isn't found, attempts to fetch one from the database.
+		/// </summary>
+		/// <param name="id">The tier name.</param>
+		/// <exception cref="TierNotFoundException">Thrown if the database query returns no results.</exception>
+		/// <returns>A tier with a matching name.</returns>
 		public Task<Tier> GetAsync(string name)
 		{
 			return Task.Run(() =>
 			{
-				Tier tier = _cache.Find(t => t.Name == name);
+				Tier tier = Tiers.Find(t => t.Name == name);
 				if (tier != null)
 					return tier;
 				else
@@ -103,7 +127,7 @@ namespace CTRSystem.DB
 								Permissions = result.Get<string>("Permissions").Split(',').ToList(),
 								ExperienceMultiplier = result.Get<float>("ExperienceMultiplier")
 							};
-							_cache.Add(tier);
+							Tiers.Add(tier);
 							return tier;
 						}
 						else
@@ -113,11 +137,22 @@ namespace CTRSystem.DB
 			});
 		}
 
+		/// <summary>
+		/// Gets the ideal tier based on a credit balance.
+		/// </summary>
+		/// <param name="totalcredits">The total number of credits to account for.</param>
+		/// <returns>A tier that matches the given credit balance, or null if none is found.</returns>
 		public Tier GetByCredits(float totalcredits)
 		{
-			return _cache.FindAll(t => t.CreditsRequired <= totalcredits).OrderBy(t => t.CreditsRequired).LastOrDefault();
+			return Tiers.FindAll(t => t.CreditsRequired <= totalcredits).OrderBy(t => t.CreditsRequired).LastOrDefault();
 		}
 
+		/// <summary>
+		/// Asynchronously fetches the ideal tier from the database based on a credit balance.
+		/// </summary>
+		/// <param name="totalcredits">The total number of credits to account for.</param>
+		/// <exception cref="TierNotFoundException">Thrown if the database query returns no results.</exception>
+		/// <returns>A tier that matches the given credit balance.</returns>
 		public Task<Tier> GetByCreditsAsync(float totalcredits)
 		{
 			return Task.Run(() =>
@@ -136,8 +171,8 @@ namespace CTRSystem.DB
 							Permissions = result.Get<string>("Permissions").Split(',').ToList(),
 							ExperienceMultiplier = result.Get<float>("ExperienceMultiplier")
 						};
-						if (!_cache.Contains(tier))
-							_cache.Add(tier);
+						if (!Tiers.Contains(tier))
+							Tiers.Add(tier);
 						return tier;
 					}
 					throw new TierNotFoundException(null);
@@ -145,6 +180,10 @@ namespace CTRSystem.DB
 			});
 		}
 
+		/// <summary>
+		/// Asynchronously fetches all tiers from the database.
+		/// </summary>
+		/// <returns>A list of all tiers that exist in the database.</returns>
 		public Task<List<Tier>> GetAllAsync()
 		{
 			return Task.Run(() =>
@@ -170,6 +209,12 @@ namespace CTRSystem.DB
 			});
 		}
 
+		/// <summary>
+		/// Upgrades a contributor's tier based on their total credit balance.
+		/// </summary>
+		/// <param name="contributor">A reference to the contributor object to upgrade.</param>
+		/// <param name="suppressNotifications">Whether or not notification updates should be suppressed.</param>
+		/// <returns>A task for this action.</returns>
 		public async Task UpgradeTier(Contributor contributor, bool suppressNotifications = false)
 		{
 			if (suppressNotifications
@@ -203,18 +248,18 @@ namespace CTRSystem.DB
 		/// </summary>
 		public async void Refresh()
 		{
-			if (_cache.Count == 0)
+			if (Tiers.Count == 0)
 				return;
 
 			List<Tier> tiers = await GetAllAsync();
-			lock (_cache)
+			lock (Tiers)
 			{
-				for (int i = 0; i < _cache.Count; i++)
+				for (int i = 0; i < Tiers.Count; i++)
 				{
-					if (!tiers.Contains(_cache[i]))
-						_cache.RemoveAt(i);
+					if (!tiers.Contains(Tiers[i]))
+						Tiers.RemoveAt(i);
 					else
-						_cache[i] = tiers.Find(t => t.ID == _cache[i].ID);
+						Tiers[i] = tiers.Find(t => t.ID == Tiers[i].ID);
 				}
 			}
 		}
