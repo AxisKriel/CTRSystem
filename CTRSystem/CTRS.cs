@@ -17,7 +17,6 @@ using TShockAPI.Hooks;
 using Wolfje.Plugins.SEconomy;
 using Wolfje.Plugins.SEconomy.Journal;
 using Config = CTRSystem.Configuration.ConfigFile;
-using Texts = CTRSystem.Configuration.Texts;
 
 namespace CTRSystem
 {
@@ -255,7 +254,6 @@ namespace CTRSystem
 		{
 			try
 			{
-				// Fetches the contributor from the database, updating the cache as needed
 				Contributor con = await Contributors.GetAsync(e.Player.User.ID);
 
 				if (con != null)
