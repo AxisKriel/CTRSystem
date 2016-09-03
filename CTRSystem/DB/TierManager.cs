@@ -11,6 +11,7 @@ namespace CTRSystem.DB
 {
 	public class TierManager
 	{
+		private CTRS _main;
 		private IDbConnection db;
 		
 		/// <summary>
@@ -22,16 +23,17 @@ namespace CTRSystem.DB
 		/// Initializes a new instance of the <see cref="TierManager"/> class.
 		/// Manages and caches <see cref="Tier"/> instances loaded from a database.
 		/// </summary>
-		/// <param name="db">The database connection to load data from and to which updates will be sent.</param>
-		public TierManager(IDbConnection db)
+		/// <param name="main">The parent CTRSystem instance.</param>
+		public TierManager(CTRS main)
 		{
-			this.db = db;
+			_main = main;
+			db = _main.Db;
 
 			var creator = new SqlTableCreator(db, db.GetSqlType() == SqlType.Sqlite
 				? (IQueryBuilder)new SqliteQueryCreator()
 				: new MysqlQueryCreator());
 
-			if (creator.EnsureTableStructure(new SqlTable(CTRS.Config.TierTableName,
+			if (creator.EnsureTableStructure(new SqlTable(_main.Config.TierTableName,
 					new SqlColumn("ID", MySqlDbType.Int32) { AutoIncrement = true, Primary = true },
 					new SqlColumn("Name", MySqlDbType.VarChar) { Length = 12, Unique = true },
 					new SqlColumn("CreditsRequired", MySqlDbType.Float) { NotNull = true, DefaultValue = "0" },
@@ -40,7 +42,7 @@ namespace CTRSystem.DB
 					new SqlColumn("Permissions", MySqlDbType.Text) { NotNull = true, DefaultValue = "" },
 					new SqlColumn("ExperienceMultiplier", MySqlDbType.Float) { NotNull = true, DefaultValue = "1" })))
 			{
-				TShock.Log.ConsoleInfo($"CTRS: created table '{CTRS.Config.TierTableName}'");
+				TShock.Log.ConsoleInfo($"CTRS: created table '{_main.Config.TierTableName}'");
 			}
 
 			// Load all tiers to the cache
@@ -73,7 +75,7 @@ namespace CTRSystem.DB
 					return tier;
 				else
 				{
-					string query = $"SELECT * FROM {CTRS.Config.TierTableName} WHERE ID = @0;";
+					string query = $"SELECT * FROM {_main.Config.TierTableName} WHERE ID = @0;";
 					using (var result = db.QueryReader(query, id))
 					{
 						if (result.Read())
@@ -113,7 +115,7 @@ namespace CTRSystem.DB
 					return tier;
 				else
 				{
-					string query = $"SELECT * FROM {CTRS.Config.TierTableName} WHERE Name = @0;";
+					string query = $"SELECT * FROM {_main.Config.TierTableName} WHERE Name = @0;";
 					using (var result = db.QueryReader(query, name))
 					{
 						if (result.Read())
@@ -157,7 +159,7 @@ namespace CTRSystem.DB
 		{
 			return Task.Run(() =>
 			{
-				string query = $"SELECT * FROM {CTRS.Config.TierTableName} WHERE CreditsRequired <= @0 ORDER BY CreditsRequired DESC LIMIT 1;";
+				string query = $"SELECT * FROM {_main.Config.TierTableName} WHERE CreditsRequired <= @0 ORDER BY CreditsRequired DESC LIMIT 1;";
 				using (var result = db.QueryReader(query, totalcredits))
 				{
 					if (result.Read())
@@ -189,7 +191,7 @@ namespace CTRSystem.DB
 			return Task.Run(() =>
 			{
 				List<Tier> list = new List<Tier>();
-				string query = $"SELECT * FROM {CTRS.Config.TierTableName};";
+				string query = $"SELECT * FROM {_main.Config.TierTableName};";
 				using (var result = db.QueryReader(query))
 				{
 					while (result.Read())
@@ -238,7 +240,7 @@ namespace CTRSystem.DB
 				}
 
 
-				if (!await CTRS.Contributors.UpdateAsync(contributor, updates))
+				if (!await _main.Contributors.UpdateAsync(contributor, updates))
 					TShock.Log.ConsoleError("CTRS-DB: something went wrong while updating a contributor's notifications.");
 			}
 		}

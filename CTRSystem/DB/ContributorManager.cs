@@ -12,34 +12,20 @@ namespace CTRSystem.DB
 {
 	public class ContributorManager
 	{
+		private CTRS _main;
 		private IDbConnection db;
 		private object syncLock = new object();
 
-		/// <summary>
-		/// Occurs after a contributor has been updated.
-		/// Contributor objects should hook to this event to properly follow changes.
-		/// </summary>
-		public event EventHandler<ContributorUpdateEventArgs> ContributorUpdate;
-
-		/// <summary>
-		/// Occurs after a contributor receives a new transaction.
-		/// </summary>
-		public event EventHandler<TransactionEventArgs> Transaction;
-
-		public void OnTransaction(object sender, TransactionEventArgs e)
+		public ContributorManager(CTRS main)
 		{
-			Transaction?.Invoke(sender, e);
-		}
-
-		public ContributorManager(IDbConnection db)
-		{
-			this.db = db;
+			_main = main;
+			db = _main.Db;
 
 			var creator = new SqlTableCreator(db, db.GetSqlType() == SqlType.Sqlite
 				? (IQueryBuilder)new SqliteQueryCreator()
 				: new MysqlQueryCreator());
 
-			if (creator.EnsureTableStructure(new SqlTable(CTRS.Config.ContributorTableName,
+			if (creator.EnsureTableStructure(new SqlTable(_main.Config.ContributorTableName,
 				new SqlColumn("ID", MySqlDbType.Int32) { AutoIncrement = true, Primary = true },
 				new SqlColumn("XenforoID", MySqlDbType.Int32) { Unique = true, DefaultValue = null },
 				new SqlColumn("TotalCredits", MySqlDbType.Float) { NotNull = true, DefaultValue = "0" },
@@ -50,30 +36,30 @@ namespace CTRSystem.DB
 				new SqlColumn("Notifications", MySqlDbType.Int32) { NotNull = true, DefaultValue = "0" },
 				new SqlColumn("Settings", MySqlDbType.Int32) { NotNull = true, DefaultValue = "0" })))
 			{
-				TShock.Log.ConsoleInfo($"CTRS: created table '{CTRS.Config.ContributorTableName}'");
+				TShock.Log.ConsoleInfo($"CTRS: created table '{_main.Config.ContributorTableName}'");
 			}
 
-			if (creator.EnsureTableStructure(new SqlTable(CTRS.Config.ContributorAccountsTableName,
+			if (creator.EnsureTableStructure(new SqlTable(_main.Config.ContributorAccountsTableName,
 				new SqlColumn("UserID", MySqlDbType.Int32) { Primary = true },
 				new SqlColumn("ContributorID", MySqlDbType.Int32) { NotNull = true })))
 			{
 				// This needs to be included in the table creation query
-				db.Query($@"ALTER TABLE {CTRS.Config.ContributorAccountsTableName}
+				db.Query($@"ALTER TABLE {_main.Config.ContributorAccountsTableName}
 							ADD FOREIGN KEY (ContributorID)
-							REFERENCES {CTRS.Config.ContributorTableName} (ID);");
-				TShock.Log.ConsoleInfo($"CTRS: created table '{CTRS.Config.ContributorAccountsTableName}'");
+							REFERENCES {_main.Config.ContributorTableName} (ID);");
+				TShock.Log.ConsoleInfo($"CTRS: created table '{_main.Config.ContributorAccountsTableName}'");
 			}
 		}
 
 		[Obsolete("Only kept for the legacy REST transaction route.")]
 		public bool AddLocal(Contributor contributor)
 		{
-			string query = $"INSERT INTO {CTRS.Config.ContributorTableName} (TotalCredits, LastAmount, Tier, Notifications, Settings) "
+			string query = $"INSERT INTO {_main.Config.ContributorTableName} (TotalCredits, LastAmount, Tier, Notifications, Settings) "
 						 + "VALUES (@0, @2, @3, @4, @5);";
 			if (contributor.LastDonation != DateTime.MinValue)
-				query = $"INSERT INTO {CTRS.Config.ContributorTableName} (TotalCredits, LastDonation, LastAmount, Tier, Notifications, Settings) "
+				query = $"INSERT INTO {_main.Config.ContributorTableName} (TotalCredits, LastDonation, LastAmount, Tier, Notifications, Settings) "
 					  + "VALUES (@0, @1, @2, @3, @4, @5);";
-			string query2 = $"INSERT INTO {CTRS.Config.ContributorAccountsTableName} (UserID, ContributorID) VALUES (@0, @1);";
+			string query2 = $"INSERT INTO {_main.Config.ContributorAccountsTableName} (UserID, ContributorID) VALUES (@0, @1);";
 
 			lock (syncLock)
 			{
@@ -101,7 +87,7 @@ namespace CTRSystem.DB
 
 						for (int i = 0; i < contributor.Accounts.Count; i++)
 						{
-							if (db.Query($"INSERT INTO {CTRS.Config.ContributorAccountsTableName} (UserID, ContributorID) VALUES (@0, @1);",
+							if (db.Query($"INSERT INTO {_main.Config.ContributorAccountsTableName} (UserID, ContributorID) VALUES (@0, @1);",
 									contributor.Accounts[i], contributor.Id) != 1)
 							{
 								return false;
@@ -113,7 +99,7 @@ namespace CTRSystem.DB
 				}
 				catch (Exception ex)
 				{
-					if (CTRS.Config.LogDatabaseErrors)
+					if (_main.Config.LogDatabaseErrors)
 					{
 						TShock.Log.ConsoleError($"CTRS-DB: Unable to add contributor UserID:{contributor.Accounts[0]}\nMessage: " + ex.Message);
 						TShock.Log.Error(ex.ToString());
@@ -131,18 +117,18 @@ namespace CTRSystem.DB
 		/// <returns>A <see cref="bool"/> representing whether the operation was successful or not.</returns>
 		public bool Add(Contributor contributor)
 		{
-			string query = $@"INSERT INTO {CTRS.Config.ContributorTableName} (
+			string query = $@"INSERT INTO {_main.Config.ContributorTableName} (
 					XenforoID, TotalCredits, LastAmount, Tier, Notifications, Settings)
 					VALUES (@0, @1, @3, @4, @5, @6);";
 
 			if (contributor.LastDonation != DateTime.MinValue)
 			{
-				query = $@"INSERT INTO {CTRS.Config.ContributorTableName} (
+				query = $@"INSERT INTO {_main.Config.ContributorTableName} (
 						XenforoID, TotalCredits, LastDonation, LastAmount, Tier, Notifications, Settings)
 						VALUES (@0, @1, @2, @3, @4, @5, @6);";
 			}
 
-			string query2 = $@"INSERT INTO {CTRS.Config.ContributorAccountsTableName} (UserID, ContributorID)
+			string query2 = $@"INSERT INTO {_main.Config.ContributorAccountsTableName} (UserID, ContributorID)
 								   VALUES (@0, @1);";
 
 			lock (syncLock)
@@ -172,7 +158,7 @@ namespace CTRSystem.DB
 
 						for (int i = 0; i < contributor.Accounts.Count; i++)
 						{
-							if (db.Query($"INSERT INTO {CTRS.Config.ContributorAccountsTableName} (UserID, ContributorID) VALUES (@0, @1);",
+							if (db.Query($"INSERT INTO {_main.Config.ContributorAccountsTableName} (UserID, ContributorID) VALUES (@0, @1);",
 									contributor.Accounts[i], contributor.Id) != 1)
 							{
 								return false;
@@ -184,7 +170,7 @@ namespace CTRSystem.DB
 				}
 				catch (Exception ex)
 				{
-					if (CTRS.Config.LogDatabaseErrors)
+					if (_main.Config.LogDatabaseErrors)
 					{
 						TShock.Log.ConsoleError($"CTRS-DB: Unable to add contributor with xenforoID:{contributor.XenforoId.Value}\nMessage: " + ex.Message);
 						TShock.Log.Error(ex.ToString());
@@ -215,7 +201,7 @@ namespace CTRSystem.DB
 		/// <returns>A <see cref="bool"/> representing whether the operation was successful or not.</returns>
 		public bool AddAccount(int contributorID, int userID)
 		{
-			string query = $"INSERT INTO {CTRS.Config.ContributorAccountsTableName} (UserID, ContributorID) VALUES (@0, @1);";
+			string query = $"INSERT INTO {_main.Config.ContributorAccountsTableName} (UserID, ContributorID) VALUES (@0, @1);";
 			try
 			{
 				return db.Query(query, userID, contributorID) == 1;
@@ -248,8 +234,8 @@ namespace CTRSystem.DB
 		/// <returns>A contributor object, or null if not found.</returns>
 		public Contributor Get(int userID, bool throwExceptions = false)
 		{
-			string query = $"SELECT ContributorID FROM {CTRS.Config.ContributorAccountsTableName} WHERE UserID = @0;";
-			string query2 = $"SELECT * FROM {CTRS.Config.ContributorTableName} WHERE ID = @0;";
+			string query = $"SELECT ContributorID FROM {_main.Config.ContributorAccountsTableName} WHERE UserID = @0;";
+			string query2 = $"SELECT * FROM {_main.Config.ContributorTableName} WHERE ID = @0;";
 			int contributorID;
 
 			using (var result = db.QueryReader(query, userID))
@@ -306,8 +292,8 @@ namespace CTRSystem.DB
 		/// <returns>A contributor object, or null if not found.</returns>
 		public Contributor GetByXenforoId(int xenforoID, bool throwExceptions = false)
 		{
-			string query = $"SELECT * FROM {CTRS.Config.ContributorTableName} WHERE XenforoID = @0;";
-			string query2 = $"SELECT UserID FROM {CTRS.Config.ContributorAccountsTableName} WHERE ContributorID = @0;";
+			string query = $"SELECT * FROM {_main.Config.ContributorTableName} WHERE XenforoID = @0;";
+			string query2 = $"SELECT UserID FROM {_main.Config.ContributorAccountsTableName} WHERE ContributorID = @0;";
 			using (var result = db.QueryReader(query, xenforoID))
 			{
 				if (result.Read())
@@ -352,18 +338,12 @@ namespace CTRSystem.DB
 
 		/// <summary>
 		/// Runs a task to update a contributor's data.
-		/// Fires the <see cref="ContributorUpdate"/> event.
 		/// Logs any exception thrown.
 		/// </summary>
 		/// <param name="contributor">The contributor to update with the already-updated values set.</param>
 		/// <param name="updates">The list of values to update.</param>
-		/// /// <param name="local">
-		/// If set to true, will assume the contributor update is done manually and suppresses
-		/// the firing of the contributor update global event. This can be helpful when a user
-		/// authenticated to this contributor is running a command.
-		/// </param>
 		/// <returns>True if it goes smooth, false if exceptions are thrown.</returns>
-		public bool Update(Contributor contributor, ContributorUpdates updates, bool local = false)
+		public bool Update(Contributor contributor, ContributorUpdates updates)
 		{
 			if (updates == 0)
 				return true;
@@ -386,7 +366,7 @@ namespace CTRSystem.DB
 			if ((updates & ContributorUpdates.Settings) == ContributorUpdates.Settings)
 				updatesList.Add("Settings = @8");
 
-			string query = $@"UPDATE {CTRS.Config.ContributorTableName}
+			string query = $@"UPDATE {_main.Config.ContributorTableName}
 							  SET {String.Join(", ", updatesList)}
 							  WHERE ID = @0;";
 
@@ -394,7 +374,7 @@ namespace CTRSystem.DB
 			{
 				lock (syncLock)
 				{
-					if (db.Query(query, contributor.Id,
+					return db.Query(query, contributor.Id,
 						contributor.XenforoId,
 						contributor.TotalCredits,
 						contributor.LastDonation.ToUnixTime(),
@@ -402,16 +382,7 @@ namespace CTRSystem.DB
 						contributor.Tier,
 						Tools.ColorToRGB(contributor.ChatColor),
 						(int)contributor.Notifications,
-						(int)contributor.Settings) == 1)
-					{
-						if (!local)
-							ContributorUpdate?.Invoke(this, new ContributorUpdateEventArgs(contributor, updates));
-						return true;
-					}
-					else
-					{
-						return false;
-					}
+						(int)contributor.Settings) == 1;
 				}
 			}
 			catch (Exception e)
@@ -426,20 +397,14 @@ namespace CTRSystem.DB
 
 		/// <summary>
 		/// Asynchronously updates a contributor's data.
-		/// Fires the <see cref="ContributorUpdate"/> event.
 		/// Logs any exception thrown.
 		/// </summary>
 		/// <param name="contributor">The contributor to update with the already-updated values set.</param>
 		/// <param name="updates">The list of values to update.</param>
-		/// <param name="local">
-		/// If set to true, will assume the contributor update is done manually and suppresses
-		/// the firing of the contributor update global event. This can be helpful when a user
-		/// authenticated to this contributor is running a command.
-		/// </param>
 		/// <returns>True if it updates one row, false if anything else.</returns>
-		public async Task<bool> UpdateAsync(Contributor contributor, ContributorUpdates updates, bool local = false)
+		public async Task<bool> UpdateAsync(Contributor contributor, ContributorUpdates updates)
 		{
-			return await Task.Run(() => Update(contributor, updates, local));
+			return await Task.Run(() => Update(contributor, updates));
 		}
 
 		public class ContributorManagerException : Exception

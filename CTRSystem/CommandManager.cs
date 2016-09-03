@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using CTRSystem.Configuration;
 using CTRSystem.DB;
 using CTRSystem.Extensions;
@@ -18,12 +20,18 @@ namespace CTRSystem
 		NotFound = 404
 	}
 
-	public class Commands
+	public class CommandManager
 	{
-		private static string spe = TShockAPI.Commands.Specifier;
-		public static string Tag = TShock.Utils.ColorTag("CTRS:", Color.Purple);
+		private CTRS _main;
+		private string spe = Commands.Specifier;
+		public string Tag = TShock.Utils.ColorTag("CTRS:", Color.Purple);
 
-		public static async void Authenticate(CommandArgs args)
+		public CommandManager(CTRS main)
+		{
+			_main = main;
+		}
+
+		public async void Authenticate(CommandArgs args)
 		{
 			if (!args.Player.IsLoggedIn || args.Player.User == null)
 			{
@@ -90,7 +98,7 @@ namespace CTRSystem
 				AuthResult response;
 				try
 				{
-					response = await CTRS.CredentialHelper.Authenticate(args.Player.User, new Credentials(username, password));
+					response = await _main.CredentialHelper.Authenticate(args.Player.User, new Credentials(username, password));
 				}
 				catch (Exception ex)
 				{
@@ -107,7 +115,7 @@ namespace CTRSystem
 					case LMReturnCode.Success:
 						// Store the contributor object to finish the authentication process
 						Contributor contributor = response.Contributor;
-						bool success = await CTRS.XenforoUsers.SetTShockID(contributor.XenforoId.Value, args.Player.User.ID);
+						bool success = await _main.XenforoUsers.SetTShockID(contributor.XenforoId.Value, args.Player.User.ID);
 						#region DEBUG
 #if DEBUG
 						TShock.Log.ConsoleInfo($"CTRS-AUTH: Set TShockID for Contributor {contributor.UserID.Value}? {success}");
@@ -116,13 +124,13 @@ namespace CTRSystem
 						if (success)
 						{
 							// Start listening to events
-							contributor.Listen(args.Player);
+							contributor.Listen(_main, args.Player);
 
 							// Store the contributor object
 							args.Player.SetData(Contributor.DataKey, contributor);
 							args.Player.SendSuccessMessage($"{Tag} You are now authenticated for the forum account '{username}'.");
 
-							await CTRS.UpdateNotifications(args.Player);
+							await contributor.UpdateNotifications();
 						}
 						else
 							goto case LMReturnCode.DatabaseError;
@@ -153,7 +161,7 @@ namespace CTRSystem
 			}
 		}
 
-		public static async void CAdmin(CommandArgs args)
+		public async void CAdmin(CommandArgs args)
 		{
 			var cmds = new Dictionary<char, string>
 			{
@@ -186,20 +194,28 @@ namespace CTRSystem
 					args.Player.SendErrorMessage("Invalid user!");
 				else
 				{
-					Contributor target = await CTRS.Contributors.GetAsync(user.ID);
+					Contributor target;
+
+					// Check if the player is online
+					TSPlayer player = TShock.Players.FirstOrDefault(p => p.User == user);
+					if (player != null)
+						target = player.GetData<Contributor>(Contributor.DataKey);
+					else
+						target = await _main.Contributors.GetAsync(user.ID);
+
 					if (target == null)
 						args.Player.SendErrorMessage($"User '{user.Name}' is not a contributor.");
 					else
 					{
 						target.Notifications |= Notifications.TierUpdate;
-						await CTRS.Tiers.UpgradeTier(target);
+						await _main.Tiers.UpgradeTier(target, player != null);
 						args.Player.SendSuccessMessage($"Forced a tier upgrade on contributor '{user.Name}'.");
 					}
 				}
 			}
 		}
 
-		public static async void Contributions(CommandArgs args)
+		public async void Contributions(CommandArgs args)
 		{
 			// Even with the command permission, the player must be logged in and be a contributor to proceed
 			if (!args.Player.IsLoggedIn || args.Player.User == null)
@@ -211,7 +227,7 @@ namespace CTRSystem
 			if (!args.Player.ContainsData(Contributor.DataKey))
 			{
 				args.Player.SendInfoMessage($"{Tag} You must be a contributor to use this command. Find out how to contribute to the server here: "
-					+ CTRS.Config.GetContributeURL());
+					+ _main.Config.GetContributeURL());
 				args.Player.SendInfoMessage($"{Tag} If you've already sent a contribution, use the /auth command to get started.");
 				return;
 			}
@@ -220,11 +236,11 @@ namespace CTRSystem
 			if (args.Parameters.Count < 1 || args.Parameters[0] == "-i" || args.Parameters[0].Equals("info", StringComparison.OrdinalIgnoreCase))
 			{
 				// Info Command
-				Tier tier = await CTRS.Tiers.GetAsync(con.Tier);
+				Tier tier = await _main.Tiers.GetAsync(con.Tier);
 				Tier nextTier = null;
 				try
 				{
-					nextTier = await CTRS.Tiers.GetAsync(con.Tier + 1);
+					nextTier = await _main.Tiers.GetAsync(con.Tier + 1);
 				}
 				catch (TierManager.TierNotFoundException)
 				{
@@ -232,15 +248,15 @@ namespace CTRSystem
 				}
 
 				XFUser xfuser;
-				if (!con.XenforoId.HasValue || (xfuser = await CTRS.XenforoUsers.GetAsync(args.Player.User.ID)) == null)
+				if (!con.XenforoId.HasValue || (xfuser = await _main.XenforoUsers.GetAsync(args.Player.User.ID)) == null)
 				{
 					args.Player.SendInfoMessage($"{Tag} Oops! It seems you're yet to authenticate to a valid forum account.");
 					args.Player.SendInfoMessage($"{Tag} Use the {spe}auth <username> <password> command to authenticate first.");
 					return;
 				}
 
-				args.Player.SendMessage($"{Tag} Contributions Track & Reward System v{CTRS.PublicVersion}", Color.LightGreen);
-				foreach (string s in Texts.SplitIntoLines(CTRS.Config.Texts.FormatInfo(args.Player, con, xfuser.Credits, tier, nextTier)))
+				args.Player.SendMessage($"{Tag} Contributions Track & Reward System v{_main.Version}", Color.LightGreen);
+				foreach (string s in Texts.SplitIntoLines(_main.Config.FormatInfo(args.Player, con, xfuser.Credits, tier, nextTier)))
 				{
 					args.Player.SendInfoMessage($"{Tag} {s}");
 				}
@@ -268,11 +284,11 @@ namespace CTRSystem
 				}
 
 				// If command restrictions are on, check Settings.CanChangeColor
-				if (CTRS.Config.RestrictCommands && (con.Settings & Settings.CanChangeColor) != Settings.CanChangeColor)
+				if (_main.Config.RestrictCommands && (con.Settings & Settings.CanChangeColor) != Settings.CanChangeColor)
 				{
 					args.Player.SendWarningMessage($"{Tag} You don't have permission to set chat colors!");
-					if (!String.IsNullOrWhiteSpace(CTRS.Config.Texts.RestrictedColorTip))
-						args.Player.SendInfoMessage($"{Tag} {CTRS.Config.Texts.RestrictedColorTip}");
+					if (!String.IsNullOrWhiteSpace(_main.Config.Texts.RestrictedColorTip))
+						args.Player.SendInfoMessage($"{Tag} {_main.Config.Texts.RestrictedColorTip}");
 					return;
 				}
 
@@ -280,7 +296,7 @@ namespace CTRSystem
 				if (!String.IsNullOrEmpty(match.Groups["Remove"].Value))
 				{
 					con.ChatColor = null;
-					if (await CTRS.Contributors.UpdateAsync(con, ContributorUpdates.ChatColor, true))
+					if (await _main.Contributors.UpdateAsync(con, ContributorUpdates.ChatColor))
 						args.Player.SendSuccessMessage($"{Tag} You are now using your group's default chat color.");
 					else
 						args.Player.SendErrorMessage($"Something went wrong while trying to contact our database. Please inform an administrator.");
@@ -307,7 +323,7 @@ namespace CTRSystem
 					else
 					{
 						con.ChatColor = color;
-						if (await CTRS.Contributors.UpdateAsync(con, ContributorUpdates.ChatColor, true))
+						if (await _main.Contributors.UpdateAsync(con, ContributorUpdates.ChatColor))
 						{
 							string colorString = TShock.Utils.ColorTag(Tools.ColorToRGB(con.ChatColor), con.ChatColor.Value);
 							args.Player.SendSuccessMessage($"{Tag} Your chat color is now set to {colorString}.");
@@ -318,272 +334,5 @@ namespace CTRSystem
 				}
 			}
 		}
-
-		[Route("/ctrs/transaction")]
-		[Permission(Permissions.RestTransaction)]
-		[Noun("user", true, "The user account connected to the contributor's forum account.", typeof(String))]
-		[Noun("type", false, "The search criteria type (name for name lookup, id for id lookup).", typeof(String))]
-		[Noun("credits", true, "The amount of credits to transfer.", typeof(Int32))]
-		[Noun("date", false, "The date on which the original transaction was performed, as a Int64 unix timestamp.", typeof(Int64))]
-		[Token]
-		[Obsolete("Use RestNewTransactionV2 instead.")]
-		public static object RestNewTransaction(RestRequestArgs args)
-		{
-			var ret = UserFind(args.Parameters);
-			if (ret is RestObject)
-				return ret;
-
-			User user = (User)ret;
-			if (String.IsNullOrWhiteSpace(args.Parameters["credits"]))
-				return RestMissingParam("credits");
-
-			float credits;
-			if (!Single.TryParse(args.Parameters["credits"], out credits))
-				return RestInvalidParam("credits");
-
-			long dateUnix = 0;
-			if (!String.IsNullOrWhiteSpace(args.Parameters["date"]))
-				Int64.TryParse(args.Parameters["date"], out dateUnix);
-
-			Contributor con = CTRS.Contributors.Get(user.ID);
-			bool success = false;
-			if (con == null)
-			{
-				// Transactions must never be ignored. If the contributor doesn't exist, create it
-				con = new Contributor(user);
-				con.LastAmount = credits;
-				if (dateUnix > 0)
-					con.LastDonation = dateUnix.FromUnixTime();
-				con.Tier = 1;
-				con.TotalCredits = credits;
-				success = CTRS.Contributors.AddLocal(con);
-				if (!success)
-					TShock.Log.ConsoleInfo($"CTRS-WARNING: Failed to register contribution made by user '{user.Name}'!");
-			}
-			else
-			{
-				ContributorUpdates updates = 0;
-
-				con.LastAmount = credits;
-				updates |= ContributorUpdates.LastAmount;
-
-				if (dateUnix > 0)
-				{
-					con.LastDonation = dateUnix.FromUnixTime();
-					updates |= ContributorUpdates.LastDonation;
-				}
-
-				con.TotalCredits += credits;
-				updates |= ContributorUpdates.TotalCredits;
-
-				con.Notifications |= Notifications.NewDonation;
-				// Always prompt a tier update check here
-				con.Notifications |= Notifications.TierUpdate;
-				updates |= ContributorUpdates.Notifications;
-
-				success = CTRS.Contributors.Update(con, updates);
-			}
-			if (!success)
-				return RestError("Transaction was not registered properly.");
-			else
-				return RestResponse("Transaction successful.");
-		}
-
-		/// <summary>
-		/// This is the REST Request route used by Xenforo's AD Credit payment processor.
-		/// </summary>
-		[Route("/ctrs/v2/transaction/{user_id}")]
-		[Permission(Permissions.RestTransaction)]
-		[Verb("user_id", "The database ID of the Xenforo user account that made the purchase.", typeof(Int32))]
-		[Noun("credits", true, "The amount of credits to transfer.", typeof(Int32))]
-		[Noun("date", true, "The date on which the original transaction was performed, as a Int64 unix timestamp.", typeof(Int64))]
-		[Token]
-		public static object RestNewTransactionV2(RestRequestArgs args)
-		{
-			int userID;
-
-			if (!Int32.TryParse(args.Verbs["user_id"], out userID))
-				return RestInvalidParam("user_id");
-
-			if (String.IsNullOrWhiteSpace(args.Parameters["credits"]))
-				return RestMissingParam("credits");
-
-			float credits;
-			if (!Single.TryParse(args.Parameters["credits"], out credits))
-				return RestInvalidParam("credits");
-
-			long dateUnix = 0;
-			if (!String.IsNullOrWhiteSpace(args.Parameters["date"]))
-				Int64.TryParse(args.Parameters["date"], out dateUnix);
-
-			Contributor con = CTRS.Contributors.GetByXenforoId(userID);
-			bool success = false;
-
-			if (con == null)
-			{
-				// Transactions must never be ignored. If the contributor doesn't exist, create it
-				con = new Contributor(0);
-				con.XenforoId = userID;
-				con.LastAmount = credits;
-				if (dateUnix > 0)
-					con.LastDonation = dateUnix.FromUnixTime();
-				con.Tier = 1;
-				con.TotalCredits = credits;
-
-				success = CTRS.Contributors.Add(con);
-				if (!success)
-				{
-					TShock.Log.ConsoleInfo($"CTRS-WARNING: Failed to register contribution made by forum user ID [{userID}]!");
-				}
-
-				// Fire the Transaction event (must be done after Add to include the contributor Id)
-				CTRS.Contributors.OnTransaction(CTRS.Contributors, new TransactionEventArgs(con.Id, credits, dateUnix.FromUnixTime()));
-			}
-			else
-			{
-				ContributorUpdates updates = 0;
-
-				con.LastAmount = credits;
-				updates |= ContributorUpdates.LastAmount;
-
-				if (dateUnix > 0)
-				{
-					con.LastDonation = dateUnix.FromUnixTime();
-					updates |= ContributorUpdates.LastDonation;
-				}
-
-				con.TotalCredits += credits;
-				updates |= ContributorUpdates.TotalCredits;
-
-				// Fire the Transaction event
-				var transactionArgs = new TransactionEventArgs(con.Id, credits, dateUnix.FromUnixTime());
-				CTRS.Contributors.OnTransaction(CTRS.Contributors, transactionArgs);
-
-				// Suppress notifications if needed
-				if (!transactionArgs.SuppressNotifications)
-				{
-					con.Notifications |= Notifications.NewDonation;
-					con.Notifications |= Notifications.TierUpdate;
-					updates |= ContributorUpdates.Notifications;
-				}
-
-				success = CTRS.Contributors.Update(con, updates);
-			}
-			if (!success)
-				return RestError("Transaction was not registered properly.");
-			else
-				return RestResponse("Transaction successful.");
-		}
-
-		[Route("/ctrs/update")]
-		[Permission(Permissions.RestTransaction)]
-		[Token]
-		[Obsolete]
-		public static object RestUpdateContributors(RestRequestArgs args)
-		{
-			// An UpdateContributorsV2 will eventually replace this with more precise updating instead of grab all
-			return RestError("This endpoint has been deprecated.");
-		}
-
-#region REST Utility Methods
-
-		private static RestObject RestError(string message, string status = "400")
-		{
-			return new RestObject(status) { Error = message };
-		}
-
-		private static RestObject RestResponse(string message, string status = "200")
-		{
-			return new RestObject(status) { Response = message };
-		}
-
-		private static RestObject RestMissingParam(string var)
-		{
-			return RestError("Missing or empty " + var + " parameter");
-		}
-
-		private static RestObject RestMissingParam(params string[] vars)
-		{
-			return RestMissingParam(string.Join(", ", vars));
-		}
-
-		private static RestObject RestInvalidParam(string var)
-		{
-			return RestError("Missing or invalid " + var + " parameter");
-		}
-
-		private static bool GetBool(string val, bool def)
-		{
-			bool ret;
-			return bool.TryParse(val, out ret) ? ret : def;
-		}
-
-		private static object PlayerFind(IParameterCollection parameters)
-		{
-			string name = parameters["player"];
-			if (string.IsNullOrWhiteSpace(name))
-				return RestMissingParam("player");
-
-			var found = TShock.Utils.FindPlayer(name);
-			switch (found.Count)
-			{
-				case 1:
-					return found[0];
-				case 0:
-					return RestError("Player " + name + " was not found");
-				default:
-					return RestError("Player " + name + " matches " + found.Count + " players");
-			}
-		}
-
-		private static object UserFind(IParameterCollection parameters)
-		{
-			string name = parameters["user"];
-			if (string.IsNullOrWhiteSpace(name))
-				return RestMissingParam("user");
-
-			User user;
-			string type = parameters["type"];
-			try
-			{
-				switch (type)
-				{
-					case null:
-					case "name":
-						type = "name";
-						user = TShock.Users.GetUserByName(name);
-						break;
-					case "id":
-						user = TShock.Users.GetUserByID(Convert.ToInt32(name));
-						break;
-					default:
-						return RestError("Invalid Type: '" + type + "'");
-				}
-			}
-			catch (Exception e)
-			{
-				return RestError(e.Message);
-			}
-
-			if (null == user)
-				return RestError(String.Format("User {0} '{1}' doesn't exist", type, name));
-
-			return user;
-		}
-
-		private static object GroupFind(IParameterCollection parameters)
-		{
-			var name = parameters["group"];
-			if (string.IsNullOrWhiteSpace(name))
-				return RestMissingParam("group");
-
-			var group = TShock.Groups.GetGroupByName(name);
-			if (null == group)
-				return RestError("Group '" + name + "' doesn't exist");
-
-			return group;
-		}
-
-#endregion
 	}
 }

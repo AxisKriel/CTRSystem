@@ -10,6 +10,7 @@ namespace CTRSystem.DB
 	public class Contributor
 	{
 		private TSPlayer _receiver;
+		private CTRS _scope;
 
 		/// <summary>
 		/// The key used when storing a contributor object as data.
@@ -76,20 +77,25 @@ namespace CTRSystem.DB
 		/// </summary>
 		public void Unlisten()
 		{
-			CTRS.Contributors.ContributorUpdate -= OnUpdate;
-			CTRS.Contributors.Transaction -= OnTransaction;
+			if (_scope != null)
+			{
+				_scope.Rests.ContributorUpdate -= OnUpdate;
+				_scope.Rests.Transaction -= OnTransaction;
+			}
 		}
 
 		/// <summary>
 		/// Start listening to contributor related events fired by various contribution modules.
 		/// </summary>
+		/// <param name="main">The CTRSystem instance scope.</param>
 		/// <param name="player">If set, will send notification messages to a player whenever possible.</param>
-		public void Listen(TSPlayer player = null)
+		public void Listen(CTRS scope, TSPlayer player = null)
 		{
 			_receiver = player;
+			_scope = scope;
 
-			CTRS.Contributors.ContributorUpdate += OnUpdate;
-			CTRS.Contributors.Transaction += OnTransaction;
+			_scope.Rests.ContributorUpdate += OnUpdate;
+			_scope.Rests.Transaction += OnTransaction;
 		}
 
 		public async void OnTransaction(object sender, TransactionEventArgs e)
@@ -103,21 +109,21 @@ namespace CTRSystem.DB
 
 				// If the player is online, notify them about the transaction
 				foreach (string s in Texts.SplitIntoLines(
-					CTRS.Config.Texts.FormatNewDonation(_receiver, this, LastAmount)))
+					_scope.Config.FormatNewDonation(_receiver, this, LastAmount)))
 				{
 					_receiver.SendInfoMessage(s);
 				}
 
 				// Check for tier upgrades
 				int oldTier = Tier;
-				await CTRS.Tiers.UpgradeTier(this, true);
+				await _scope.Tiers.UpgradeTier(this, true);
 				if (Tier != oldTier)
 				{
 					// Delay the message according to the config
-					await Task.Delay(CTRS.Config.NotificationCheckSeconds);
+					await Task.Delay(_scope.Config.NotificationCheckSeconds);
 
 					foreach (string s in Texts.SplitIntoLines(
-						CTRS.Config.Texts.FormatNewTier(_receiver, this, CTRS.Tiers.Get(Tier))))
+						_scope.Config.FormatNewTier(_receiver, this, _scope.Tiers.Get(Tier))))
 					{
 						_receiver.SendInfoMessage(s);
 					}
@@ -128,27 +134,106 @@ namespace CTRSystem.DB
 			}
 		}
 
-		public void OnUpdate(object sender, ContributorUpdateEventArgs e)
+		public async void OnUpdate(object sender, ContributorUpdateEventArgs e)
 		{
 			if (e.ContributorId == Id)
 			{
 				if ((e.Updates & ContributorUpdates.XenforoID) == ContributorUpdates.XenforoID)
 					XenforoId = e.XenforoId;
+
 				if ((e.Updates & ContributorUpdates.TotalCredits) == ContributorUpdates.TotalCredits)
 					TotalCredits = e.TotalCredits;
+
 				if ((e.Updates & ContributorUpdates.LastDonation) == ContributorUpdates.LastDonation)
 					LastDonation = e.LastDonation;
+
 				if ((e.Updates & ContributorUpdates.LastAmount) == ContributorUpdates.LastAmount)
 					LastAmount = e.LastAmount;
-				if ((e.Updates & ContributorUpdates.Tier) == ContributorUpdates.Tier)
-					Tier = e.Tier;
+
+				// Direct tier update shouldn't be pushed this way
+				//if ((e.Updates & ContributorUpdates.Tier) == ContributorUpdates.Tier)
+				//	Tier = e.Tier;
+
 				if ((e.Updates & ContributorUpdates.ChatColor) == ContributorUpdates.ChatColor)
 					ChatColor = e.ChatColor;
-				if ((e.Updates & ContributorUpdates.Notifications) == ContributorUpdates.Notifications)
-					Notifications = e.Notifications;
+
 				if ((e.Updates & ContributorUpdates.Settings) == ContributorUpdates.Settings)
 					Settings = e.Settings;
+
+				if ((e.Updates & ContributorUpdates.Notifications) == ContributorUpdates.Notifications)
+				{
+					Notifications = e.Notifications;
+
+					// Update notifications
+					await UpdateNotifications();
+				}
 			}
+		}
+
+		public async Task UpdateNotifications()
+		{
+			if (_receiver == null || _scope == null)
+				return;
+
+			ContributorUpdates updates = 0;
+
+			// Upgrade tier before anything else
+			await _scope.Tiers.UpgradeTier(this);
+
+			// Initial delay
+			await Task.Delay(_scope.Config.NotificationDelaySeconds * 1000);
+
+			// This should only occur once
+			if ((Notifications & Notifications.Introduction) != Notifications.Introduction)
+			{
+				// Do Introduction message
+				foreach (string s in Texts.SplitIntoLines(
+					_scope.Config.FormatIntroduction(_receiver, this)))
+				{
+					_receiver.SendInfoMessage(s);
+				}
+				Notifications |= Notifications.Introduction;
+				updates |= ContributorUpdates.Notifications;
+
+				// If there are more notifications in the pile, run the regular relay
+				if (Notifications != Notifications.Introduction)
+					await Task.Delay(_scope.Config.NotificationCheckSeconds * 1000);
+			}
+
+			// Regular notification loop (Notifications.Introduction is the regular state for the enum)
+			while (Notifications != Notifications.Introduction)
+			{
+				if ((Notifications & Notifications.NewDonation) == Notifications.NewDonation)
+				{
+					// Do NewDonation message
+					foreach (string s in Texts.SplitIntoLines(
+						_scope.Config.FormatNewDonation(_receiver, this, LastAmount)))
+					{
+						_receiver.SendInfoMessage(s);
+					}
+					Notifications ^= Notifications.NewDonation;
+					updates |= ContributorUpdates.Notifications;
+				}
+
+				else if ((Notifications & Notifications.NewTier) == Notifications.NewTier)
+				{
+					// Do Tier Rank Up message
+					foreach (string s in Texts.SplitIntoLines(
+						_scope.Config.FormatNewTier(_receiver, this, _scope.Tiers.Get(Tier))))
+					{
+						_receiver.SendInfoMessage(s);
+					}
+					Notifications ^= Notifications.NewTier;
+					updates |= ContributorUpdates.Notifications;
+				}
+
+				// If there are more notifications in the pile, run the regular relay
+				if (Notifications != Notifications.Introduction)
+					await Task.Delay(_scope.Config.NotificationCheckSeconds * 1000);
+			}
+
+			if (!await _scope.Contributors.UpdateAsync(this, updates) && _scope.Config.LogDatabaseErrors)
+				TShock.Log.ConsoleError("CTRS-DB: something went wrong while updating a contributor's notifications.");
 		}
 	}
 }

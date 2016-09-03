@@ -61,7 +61,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Commands.cs" />
+    <Compile Include="CommandManager.cs" />
     <Compile Include="Configuration\ConfigFile.cs" />
     <Compile Include="Configuration\Texts.cs" />
     <Compile Include="Configuration\XenforoConfig.cs" />
@@ -81,6 +81,7 @@
     <Compile Include="LoginManager.cs" />
     <Compile Include="Permissions.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RestManager.cs" />
     <Compile Include="Tools.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

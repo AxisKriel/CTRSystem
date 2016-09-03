@@ -2,7 +2,6 @@ CTRS VERIFIED BUGS
 
 CTRS NEEDED FEATURES
  - Permabuffs integration (update permabuffs and possibly make the generalized command) [no longer a priority]
- - Optimize LoadCache() to fetch only loaded contributors
 
 CTRS OPTIONAL FEATURES
 

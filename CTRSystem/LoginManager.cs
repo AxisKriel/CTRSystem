@@ -44,6 +44,13 @@ namespace CTRSystem
 
 	public class LoginManager
 	{
+		private CTRS _main;
+
+		public LoginManager(CTRS main)
+		{
+			_main = main;
+		}
+
 		/// <summary>
 		/// Authenticates an <see cref="User"/> to a Xenforo forum account and returns the <see cref="Contributor"/>
 		/// if the authentication succeeds.
@@ -62,7 +69,7 @@ namespace CTRSystem
 			}
 
 			var sb = new StringBuilder();
-			sb.Append(CTRS.Config.Xenforo.XenAPIURI ?? "http://sbplanet.co/forums/api.php");
+			sb.Append(_main.Config.Xenforo.XenAPIURI ?? "http://sbplanet.co/forums/api.php");
 
 			// REQUEST: api.php?action=authenticate&username=USERNAME&password=PASSWORD
 			sb.Append("?action=authenticate");
@@ -120,7 +127,7 @@ namespace CTRSystem
 				// Store the hash and perform a second query to get the userID
 				string hash = (string)dict["hash"];
 				sb.Clear();
-				sb.Append(CTRS.Config.Xenforo.XenAPIURI ?? "http://sbplanet.co/forums/api.php");
+				sb.Append(_main.Config.Xenforo.XenAPIURI ?? "http://sbplanet.co/forums/api.php");
 
 				// REQUEST: api.php?action=getUser&hash=USERNAME:HASH
 				sb.Append("?action=getUser");
@@ -174,18 +181,18 @@ namespace CTRSystem
 								groups.Add(Convert.ToInt32(s));
 						});
 					}
-					if (!CTRS.Config.Xenforo.ContributorForumGroupIDs.Intersect(groups).Any())
+					if (!_main.Config.Xenforo.ContributorForumGroupIDs.Intersect(groups).Any())
 					{
 						return new AuthResult(LMReturnCode.UserNotAContributor);
 					}
 
 					Contributor contributor =
-						await CTRS.Contributors.GetByXenforoIdAsync(Convert.ToInt32(dict["user_id"]));
+						await _main.Contributors.GetByXenforoIdAsync(Convert.ToInt32(dict["user_id"]));
 					if (contributor == null)
 					{
 						/* Attempt to find contributor by user ID in the event a transaction
 						 * was logged for an unexistant contributor account */
-						contributor = await CTRS.Contributors.GetAsync(user.ID);
+						contributor = await _main.Contributors.GetAsync(user.ID);
 
 						bool success = false;
 						if (contributor == null)
@@ -193,13 +200,13 @@ namespace CTRSystem
 							// Add a new contributor
 							contributor = new Contributor(user);
 							contributor.XenforoId = Convert.ToInt32(dict["user_id"]);
-							success = await CTRS.Contributors.AddAsync(contributor);
+							success = await _main.Contributors.AddAsync(contributor);
 						}
 						else
 						{
 							// Set XenforoID for an existing contributor
 							contributor.XenforoId = Convert.ToInt32(dict["user_id"]);
-							success = await CTRS.Contributors.UpdateAsync(contributor, ContributorUpdates.XenforoID);
+							success = await _main.Contributors.UpdateAsync(contributor, ContributorUpdates.XenforoID);
 						}
 
 						if (success)
@@ -210,12 +217,12 @@ namespace CTRSystem
 					else
 					{
 						// Check account limit
-						if (CTRS.Config.AccountLimit > 0 && contributor.Accounts.Count >= CTRS.Config.AccountLimit)
+						if (_main.Config.AccountLimit > 0 && contributor.Accounts.Count >= _main.Config.AccountLimit)
 						{
 							return new AuthResult(LMReturnCode.AccountLimitReached);
 						}
 
-						if (await CTRS.Contributors.AddAccountAsync(contributor.Id, user.ID))
+						if (await _main.Contributors.AddAccountAsync(contributor.Id, user.ID))
 						{
 							contributor.Accounts.Add(user.ID);
 							return new AuthResult(contributor);

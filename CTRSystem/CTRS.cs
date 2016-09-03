@@ -10,7 +10,6 @@ using CTRSystem.DB;
 using CTRSystem.Extensions;
 using Mono.Data.Sqlite;
 using MySql.Data.MySqlClient;
-using Rests;
 using Terraria;
 using TerrariaApi.Server;
 using TShockAPI;
@@ -25,7 +24,7 @@ namespace CTRSystem
 	[ApiVersion(1, 23)]
 	public class CTRS : TerrariaPlugin
 	{
-		private static Timer _tierUpdateTimer;
+		private Timer _tierUpdateTimer;
 
 		public override string Author => "Enerdy";
 
@@ -40,22 +39,21 @@ namespace CTRSystem
 			Order = 20001;
 		}
 
-		public static Config Config { get; private set; }
+		public Config Config { get; private set; }
 
-		public static IDbConnection Db { get; private set; }
+		public IDbConnection Db { get; private set; }
 
-		public static ContributorManager Contributors { get; private set; }
+		public CommandManager Commands { get; private set; }
 
-		public static LoginManager CredentialHelper { get; private set; }
+		public ContributorManager Contributors { get; private set; }
 
-		public static TierManager Tiers { get; private set; }
+		public LoginManager CredentialHelper { get; private set; }
 
-		public static XenforoManager XenforoUsers { get; private set; }
+		public RestManager Rests { get; private set; }
 
-		public static Version PublicVersion
-		{
-			get { return Assembly.GetExecutingAssembly().GetName().Version; }
-		}
+		public TierManager Tiers { get; private set; }
+
+		public XenforoManager XenforoUsers { get; private set; }
 
 		protected override void Dispose(bool disposing)
 		{
@@ -175,11 +173,13 @@ namespace CTRSystem
 			#region Config
 
 			string path = Path.Combine(TShock.SavePath, "CTRSystem", "CTRS-Config.json");
-			Config = Config.Read(path);
+			Config = Config.Read(this, path);
 
 			#endregion
 
 			#region Commands
+
+			Commands = new CommandManager(this);
 
 			Action<Command> Add = c =>
 			{
@@ -203,11 +203,6 @@ namespace CTRSystem
 				DoLog = false,
 				HelpText = "Connects your Xenforo account to your TShock account. Enter your forum credentials OR generate an auth code first by visiting your user control panel."
 			});
-
-			TShock.RestApi.Register(new SecureRestCommand("/ctrs/transaction", Commands.RestNewTransaction, Permissions.RestTransaction));
-			TShock.RestApi.Register(new SecureRestCommand("/ctrs/update", Commands.RestUpdateContributors, Permissions.RestTransaction));
-
-			TShock.RestApi.Register(new SecureRestCommand("/ctrs/v2/transaction/{user_id}", Commands.RestNewTransactionV2, Permissions.RestTransaction));
 
 			#endregion
 
@@ -249,9 +244,10 @@ namespace CTRSystem
 			_tierUpdateTimer.Elapsed += UpdateTiers;
 			_tierUpdateTimer.Start();
 
-			Contributors = new ContributorManager(Db);
-			CredentialHelper = new LoginManager();
-			Tiers = new TierManager(Db);
+			Contributors = new ContributorManager(this);
+			CredentialHelper = new LoginManager(this);
+			Rests = new RestManager(this);
+			Tiers = new TierManager(this);
 			XenforoUsers = new XenforoManager(xfdb);
 		}
 
@@ -265,12 +261,12 @@ namespace CTRSystem
 				if (con != null)
 				{
 					// Start listening to events
-					con.Listen(e.Player);
+					con.Listen(this, e.Player);
 
 					// Store the contributor object
 					e.Player.SetData(Contributor.DataKey, con);
 
-					await UpdateNotifications(e.Player);
+					await con.UpdateNotifications();
 				}
 			}
 			catch
@@ -315,7 +311,7 @@ namespace CTRSystem
 		void OnReload(ReloadEventArgs e)
 		{
 			string path = Path.Combine(TShock.SavePath, "CTRSystem", "CTRS-Config.json");
-			Config = Config.Read(path);
+			Config = Config.Read(this, path);
 
 			if ((Config.TierRefreshMinutes * 60 * 1000) != _tierUpdateTimer.Interval)
 			{
@@ -348,7 +344,8 @@ namespace CTRSystem
 			if (SEconomyPlugin.Instance != null
 				&& e.ToAccount != null
 				&& e.FromAccount != null
-				&& e.FromAccount.IsSystemAccount)
+				&& e.FromAccount.IsSystemAccount
+				&& (!e.Options.HasFlag(BankAccountTransferOptions.SuppressDefaultAnnounceMessages)))
 			{
 				// Find the player (note: could be troublesome if multiple login is enabled)
 				var player = (from p in TShock.Players
@@ -378,71 +375,6 @@ namespace CTRSystem
 		}
 
 		#endregion
-
-		internal static async Task UpdateNotifications(TSPlayer player)
-		{
-			if (player == null || !player.ContainsData(Contributor.DataKey))
-				return;
-
-			Contributor con = player.GetData<Contributor>(Contributor.DataKey);
-
-			ContributorUpdates updates = 0;
-
-			// Upgrade tier before anything else
-			await Tiers.UpgradeTier(con);
-
-			// Initial delay
-			await Task.Delay(Config.NotificationDelaySeconds * 1000);
-
-			// This should only occur once
-			if ((con.Notifications & Notifications.Introduction) != Notifications.Introduction)
-			{
-				// Do Introduction message
-				foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatIntroduction(player, con)))
-				{
-					player.SendInfoMessage(s);
-				}
-				con.Notifications |= Notifications.Introduction;
-				updates |= ContributorUpdates.Notifications;
-
-				// If there are more notifications in the pile, run the regular relay
-				if (con.Notifications != Notifications.Introduction)
-					await Task.Delay(Config.NotificationCheckSeconds * 1000);
-			}
-
-			// Regular notification loop (Notifications.Introduction is the regular state for the enum)
-			while (con.Notifications != Notifications.Introduction)
-			{
-				if ((con.Notifications & Notifications.NewDonation) == Notifications.NewDonation)
-				{
-					// Do NewDonation message
-					foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatNewDonation(player, con, con.LastAmount)))
-					{
-						player.SendInfoMessage(s);
-					}
-					con.Notifications ^= Notifications.NewDonation;
-					updates |= ContributorUpdates.Notifications;
-				}
-
-				else if ((con.Notifications & Notifications.NewTier) == Notifications.NewTier)
-				{
-					// Do Tier Rank Up message
-					foreach (string s in Texts.SplitIntoLines(Config.Texts.FormatNewTier(player, con, Tiers.Get(con.Tier))))
-					{
-						player.SendInfoMessage(s);
-					}
-					con.Notifications ^= Notifications.NewTier;
-					updates |= ContributorUpdates.Notifications;
-				}
-
-				// If there are more notifications in the pile, run the regular relay
-				if (con.Notifications != Notifications.Introduction)
-					await Task.Delay(Config.NotificationCheckSeconds * 1000);
-			}
-
-			if (!await Contributors.UpdateAsync(con, updates, true) && Config.LogDatabaseErrors)
-				TShock.Log.ConsoleError("CTRS-DB: something went wrong while updating a contributor's notifications.");
-		}
 
 		void UpdateTiers(object sender, ElapsedEventArgs e)
 		{
