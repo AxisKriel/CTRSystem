@@ -1,23 +1,23 @@
-﻿using System.Data;
+﻿using System.Linq;
 using System.Threading.Tasks;
+using Dapper;
 using MySql.Data.MySqlClient;
-using TShockAPI.DB;
 
 namespace CTRSystem.DB
 {
-	public class XenforoManager
+	public class XenforoManager : DbManager
 	{
-		private IDbConnection db;
-		private object synclock = new object();
+		private object syncLock = new object();
 
-		public XenforoManager(IDbConnection db)
+		public XenforoManager(CTRS main) : base(main)
 		{
-			this.db = db;
-
 			// Make sure the tshock_id column exists
 			try
 			{
-				db.Query("ALTER TABLE xf_user ADD tshock_id int UNIQUE;");
+				using (var db = OpenConnection())
+				{
+					db.Execute("ALTER TABLE xf_user ADD tshock_id INT UNIQUE");
+				}
 			}
 			catch (MySqlException)
 			{
@@ -29,18 +29,10 @@ namespace CTRSystem.DB
 		{
 			return Task.Run(() =>
 			{
-				string query = "SELECT user_id, username, adcredit FROM xf_user WHERE tshock_id = @0;";
-				using (var result = db.QueryReader(query, tshockID))
+				string query = "SELECT user_id, username, adcredit FROM xf_user WHERE tshock_id = @TShockID";
+				using (var db = OpenConnection())
 				{
-					if (result.Read())
-						return new XFUser()
-						{
-							user_id = result.Get<int>("user_id"),
-							username = result.Get<string>("username"),
-							adcredit = result.Get<float>("adcredit")
-						};
-					else
-						return null;
+					return db.Query<XFUser>(query, new { TShockID = tshockID }).SingleOrDefault();
 				}
 			});
 		}
@@ -53,8 +45,11 @@ namespace CTRSystem.DB
 
 			return await Task.Run(() =>
 			{
-				string query = "UPDATE xf_user SET tshock_id = @1 WHERE user_id = @0;";
-				return (db.Query(query, userID, tshockID) == 1);
+				string query = "UPDATE xf_user SET tshock_id = @TShockID WHERE user_id = @UserID";
+				using (var db = OpenConnection())
+				{
+					return (db.Execute(query, new { UserID = userID, TShockID = tshockID }) == 1);
+				}
 			});
 		}
 

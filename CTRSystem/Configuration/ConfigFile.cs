@@ -130,7 +130,7 @@ namespace CTRSystem.Configuration
 				contributor.XenforoId.HasValue ? contributor.XenforoId.Value.ToString() : "N/A",
 				String.Format(_main.Config.CreditsFormat, (int)credits),
 				String.Format(_main.Config.CreditsFormat, (int)contributor.TotalCredits),
-				contributor.LastDonation == DateTime.MinValue ? "N/A" : contributor.LastDonation.ToString("d-MMM-yyyy"),
+				!contributor.LastDonation.HasValue ? "N/A" : contributor.LastDonation.Value.ToString("d-MMM-yyyy"),
 				tier != null ? tier.ChatColor.HasValue ? TShock.Utils.ColorTag(tier.Name, tier.ChatColor.Value) : tier.Name : "N/A",
 				nextTier != null ? nextTier.ChatColor.HasValue ? TShock.Utils.ColorTag(nextTier.Name, nextTier.ChatColor.Value) : nextTier.Name : "N/A",
 				String.Format(_main.Config.CreditsFormat, (nextTier != null && tier != null) ? ((int)(nextTier.CreditsRequired - credits)).ToString() : "N/A"),

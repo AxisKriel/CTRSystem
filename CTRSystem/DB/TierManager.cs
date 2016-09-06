@@ -5,15 +5,12 @@ using System.Threading.Tasks;
 using System.Data;
 using MySql.Data.MySqlClient;
 using TShockAPI;
-using TShockAPI.DB;
+using Dapper;
 
 namespace CTRSystem.DB
 {
-	public class TierManager
-	{
-		private CTRS _main;
-		private IDbConnection db;
-		
+	public class TierManager : DbManager
+	{	
 		/// <summary>
 		/// The list of all currently loaded contributor tiers.
 		/// </summary>
@@ -24,29 +21,69 @@ namespace CTRSystem.DB
 		/// Manages and caches <see cref="Tier"/> instances loaded from a database.
 		/// </summary>
 		/// <param name="main">The parent CTRSystem instance.</param>
-		public TierManager(CTRS main)
+		public TierManager(CTRS main) : base(main)
 		{
-			_main = main;
-			db = _main.Db;
+			Task.Run(CreateTablesAsync);
 
-			var creator = new SqlTableCreator(db, db.GetSqlType() == SqlType.Sqlite
-				? (IQueryBuilder)new SqliteQueryCreator()
-				: new MysqlQueryCreator());
+			#region old code
+			//var creator = new SqlTableCreator(db, db.GetSqlType() == SqlType.Sqlite
+			//	? (IQueryBuilder)new SqliteQueryCreator()
+			//	: new MysqlQueryCreator());
 
-			if (creator.EnsureTableStructure(new SqlTable(_main.Config.TierTableName,
-					new SqlColumn("ID", MySqlDbType.Int32) { AutoIncrement = true, Primary = true },
-					new SqlColumn("Name", MySqlDbType.VarChar) { Length = 12, Unique = true },
-					new SqlColumn("CreditsRequired", MySqlDbType.Float) { NotNull = true, DefaultValue = "0" },
-					new SqlColumn("ShortName", MySqlDbType.VarChar) { NotNull = true, DefaultValue = "", Length = 6 },
-					new SqlColumn("ChatColor", MySqlDbType.Text) { NotNull = true, DefaultValue = "" },
-					new SqlColumn("Permissions", MySqlDbType.Text) { NotNull = true, DefaultValue = "" },
-					new SqlColumn("ExperienceMultiplier", MySqlDbType.Float) { NotNull = true, DefaultValue = "1" })))
-			{
-				TShock.Log.ConsoleInfo($"CTRS: created table '{_main.Config.TierTableName}'");
-			}
+			//if (creator.EnsureTableStructure(new SqlTable(_main.Config.TierTableName,
+			//		new SqlColumn("ID", MySqlDbType.Int32) { AutoIncrement = true, Primary = true },
+			//		new SqlColumn("Name", MySqlDbType.VarChar) { Length = 12, Unique = true },
+			//		new SqlColumn("CreditsRequired", MySqlDbType.Float) { NotNull = true, DefaultValue = "0" },
+			//		new SqlColumn("ShortName", MySqlDbType.VarChar) { NotNull = true, DefaultValue = "", Length = 6 },
+			//		new SqlColumn("ChatColor", MySqlDbType.Text) { NotNull = true, DefaultValue = "" },
+			//		new SqlColumn("Permissions", MySqlDbType.Text) { NotNull = true, DefaultValue = "" },
+			//		new SqlColumn("ExperienceMultiplier", MySqlDbType.Float) { NotNull = true, DefaultValue = "1" })))
+			//{
+			//	TShock.Log.ConsoleInfo($"CTRS: created table '{_main.Config.TierTableName}'");
+			//}
+			#endregion
 
 			// Load all tiers to the cache
 			Task.Run(async () => Tiers = await GetAllAsync());
+		}
+
+		public Task CreateTablesAsync()
+		{
+			return Task.Run(() =>
+			{
+				#region SQL(tiers)
+				string tiers = PrepareSql($@"
+				CREATE TABLE IF NOT EXISTS `{Main.Config.TierTableName}` (
+					`ID` INT(11) NOT NULL AUTO_INCREMENT,
+					`Name` VARCHAR(12) NULL DEFAULT NULL,
+					`CreditsRequired` FLOAT NOT NULL DEFAULT '0',
+					`ShortName` VARCHAR(6) NOT NULL,
+					`ChatColor` TEXT NOT NULL,
+					`Permissions` TEXT NOT NULL,
+					`ExperienceMultiplier` FLOAT NOT NULL DEFAULT '1',
+					PRIMARY KEY (`ID`),
+					UNIQUE INDEX `Name` (`Name`)
+				)
+				COLLATE='utf8_general_ci'
+				ENGINE=InnoDB");
+				#endregion
+
+				using (var db = OpenConnection())
+				{
+					try
+					{
+						// Create Table {Tiers}
+						db.Execute(tiers);
+					}
+					catch (Exception ex)
+					{
+						if (Main.Config.LogDatabaseErrors)
+						{
+							TShock.Log.ConsoleError(ex.ToString());
+						}
+					}
+				}
+			});
 		}
 
 		/// <summary>
@@ -75,25 +112,23 @@ namespace CTRSystem.DB
 					return tier;
 				else
 				{
-					string query = $"SELECT * FROM {_main.Config.TierTableName} WHERE ID = @0;";
-					using (var result = db.QueryReader(query, id))
+					#region SQL(tier_by_id)
+					string tier_by_id = PrepareSql($@"
+					SELECT *
+					FROM {Main.Config.TierTableName}
+					WHERE ID = @Id");
+					#endregion
+
+					using (var db = OpenConnection())
 					{
-						if (result.Read())
+						tier = (Tier)db.Query<Tier.DataModel>(tier_by_id, new { Id = id }).SingleOrDefault();
+						if (tier == null)
+							throw new TierNotFoundException(id);
+						else
 						{
-							tier = new Tier(id)
-							{
-								Name = result.Get<string>("Name"),
-								CreditsRequired = result.Get<float>("CreditsRequired"),
-								ShortName = result.Get<string>("ShortName"),
-								ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor")),
-								Permissions = result.Get<string>("Permissions").Split(',').ToList(),
-								ExperienceMultiplier = result.Get<float>("ExperienceMultiplier")
-							};
 							Tiers.Add(tier);
 							return tier;
 						}
-						else
-							throw new TierNotFoundException(id);
 					}
 				}
 			});
@@ -115,25 +150,23 @@ namespace CTRSystem.DB
 					return tier;
 				else
 				{
-					string query = $"SELECT * FROM {_main.Config.TierTableName} WHERE Name = @0;";
-					using (var result = db.QueryReader(query, name))
+					#region SQL(tier_by_name)
+					string tier_by_name = PrepareSql($@"
+					SELECT *
+					FROM {Main.Config.TierTableName}
+					WHERE Name = @Name");
+					#endregion
+
+					using (var db = OpenConnection())
 					{
-						if (result.Read())
+						tier = (Tier)db.Query<Tier.DataModel>(tier_by_name, new { Name = name }).SingleOrDefault();
+						if (tier == null)
+							throw new TierNotFoundException(name);
+						else
 						{
-							tier = new Tier(result.Get<int>("ID"))
-							{
-								Name = result.Get<string>("Name"),
-								CreditsRequired = result.Get<float>("CreditsRequired"),
-								ShortName = result.Get<string>("ShortName"),
-								ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor")),
-								Permissions = result.Get<string>("Permissions").Split(',').ToList(),
-								ExperienceMultiplier = result.Get<float>("ExperienceMultiplier")
-							};
 							Tiers.Add(tier);
 							return tier;
 						}
-						else
-							throw new TierNotFoundException(name);
 					}
 				}
 			});
@@ -159,25 +192,27 @@ namespace CTRSystem.DB
 		{
 			return Task.Run(() =>
 			{
-				string query = $"SELECT * FROM {_main.Config.TierTableName} WHERE CreditsRequired <= @0 ORDER BY CreditsRequired DESC LIMIT 1;";
-				using (var result = db.QueryReader(query, totalcredits))
+				#region SQL(tier_by_credits)
+				string tier_by_credits = PrepareSql($@"
+				SELECT *
+				FROM {Main.Config.TierTableName}
+				WHERE CreditsRequired <= @TotalCredits
+				ORDER BY CreditsRequired DESC
+				LIMIT 1");
+				#endregion
+
+				using (var db = OpenConnection())
 				{
-					if (result.Read())
+					Tier tier = (Tier)db.Query<Tier.DataModel>(tier_by_credits, new { TotalCredits = totalcredits }).SingleOrDefault();
+
+					if (tier != null)
 					{
-						Tier tier = new Tier(result.Get<int>("ID"))
-						{
-							Name = result.Get<string>("Name"),
-							CreditsRequired = result.Get<float>("CreditsRequired"),
-							ShortName = result.Get<string>("ShortName"),
-							ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor")),
-							Permissions = result.Get<string>("Permissions").Split(',').ToList(),
-							ExperienceMultiplier = result.Get<float>("ExperienceMultiplier")
-						};
 						if (!Tiers.Contains(tier))
 							Tiers.Add(tier);
 						return tier;
 					}
-					throw new TierNotFoundException(null);
+					else
+						throw new TierNotFoundException(null);
 				}
 			});
 		}
@@ -190,24 +225,14 @@ namespace CTRSystem.DB
 		{
 			return Task.Run(() =>
 			{
-				List<Tier> list = new List<Tier>();
-				string query = $"SELECT * FROM {_main.Config.TierTableName};";
-				using (var result = db.QueryReader(query))
+				#region SQL(select_all)
+				string select_all = ($"SELECT * FROM {Main.Config.TierTableName}");
+				#endregion
+
+				using (var db = OpenConnection())
 				{
-					while (result.Read())
-					{
-						list.Add(new Tier(result.Get<int>("ID"))
-						{
-							Name = result.Get<string>("Name"),
-							CreditsRequired = result.Get<int>("CreditsRequired"),
-							ShortName = result.Get<string>("ShortName"),
-							ChatColor = Tools.ColorFromRGB(result.Get<string>("ChatColor")),
-							Permissions = result.Get<string>("Permissions").Split(',').ToList(),
-							ExperienceMultiplier = result.Get<float>("ExperienceMultiplier")
-						});
-					}
+					return db.Query<Tier.DataModel>(select_all).Cast<Tier>().ToList();
 				}
-				return list;
 			});
 		}
 
@@ -240,7 +265,7 @@ namespace CTRSystem.DB
 				}
 
 
-				if (!await _main.Contributors.UpdateAsync(contributor, updates))
+				if (!await Main.Contributors.UpdateAsync(contributor, updates))
 					TShock.Log.ConsoleError("CTRS-DB: something went wrong while updating a contributor's notifications.");
 			}
 		}

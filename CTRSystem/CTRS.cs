@@ -4,11 +4,9 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
 using System.Timers;
 using CTRSystem.DB;
 using CTRSystem.Extensions;
-using Mono.Data.Sqlite;
 using MySql.Data.MySqlClient;
 using Terraria;
 using TerrariaApi.Server;
@@ -207,25 +205,6 @@ namespace CTRSystem
 
 			#region DB
 
-			if (Config.StorageType.Equals("mysql", StringComparison.OrdinalIgnoreCase))
-			{
-				string[] host = Config.MySqlHost.Split(':');
-				Db = new MySqlConnection()
-				{
-					ConnectionString = String.Format("Server={0}; Port={1}; Database={2}; Uid={3}; Pwd={4};",
-					host[0],
-					host.Length == 1 ? "3306" : host[1],
-					Config.MySqlDbName,
-					Config.MySqlUsername,
-					Config.MySqlPassword)
-				};
-			}
-			else if (Config.StorageType.Equals("sqlite", StringComparison.OrdinalIgnoreCase))
-				Db = new SqliteConnection(String.Format("uri=file://{0},Version=3",
-					Path.Combine(TShock.SavePath, "CTRSystem", "CTRS-Data.sqlite")));
-			else
-				throw new InvalidOperationException("Invalid storage type!");
-
 			string[] _host = Config.Xenforo.MySqlHost.Split(':');
 			var xfdb = new MySqlConnection()
 			{
@@ -247,7 +226,7 @@ namespace CTRSystem
 			CredentialHelper = new LoginManager(this);
 			Rests = new RestManager(this);
 			Tiers = new TierManager(this);
-			XenforoUsers = new XenforoManager(xfdb);
+			XenforoUsers = new XenforoManager(this);
 		}
 
 		async void OnLogin(PlayerPostLoginEventArgs e)

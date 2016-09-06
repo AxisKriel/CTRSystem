@@ -30,6 +30,10 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Dapper, Version=1.50.2.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Dapper.1.50.2\lib\net451\Dapper.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="HttpServer">
       <HintPath>References\HttpServer.dll</HintPath>
     </Reference>
@@ -70,6 +74,7 @@
     <Compile Include="DB\ContributorManager.cs" />
     <Compile Include="DB\ContributorUpdateEventArgs.cs" />
     <Compile Include="DB\Enums.cs" />
+    <Compile Include="DB\DbManager.cs" />
     <Compile Include="DB\Tier.cs" />
     <Compile Include="DB\TierManager.cs" />
     <Compile Include="DB\TransactionEventArgs.cs" />
@@ -83,6 +88,10 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RestManager.cs" />
     <Compile Include="Tools.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="app.config" />
+    <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

@@ -14,7 +14,7 @@ namespace CTRSystem.DB
 
 		public float TotalCredits { get; private set; }
 
-		public DateTime LastDonation { get; private set; }
+		public DateTime? LastDonation { get; private set; }
 
 		public float LastAmount { get; private set; }
 
