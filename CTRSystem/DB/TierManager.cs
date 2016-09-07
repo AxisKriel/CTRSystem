@@ -47,6 +47,20 @@ namespace CTRSystem.DB
 			Task.Run(async () => Tiers = await GetAllAsync());
 		}
 
+		/// <summary>
+		/// Initializes a new instance of the <see cref="TierManager"/> class using a custom connection string.
+		/// Manages and caches <see cref="Tier"/> instances loaded from a database.
+		/// </summary>
+		/// <param name="main">The parent CTRSystem instance.</param>
+		/// <param name="connectionString">The connection string to use when connecting to the database.</param>
+		public TierManager(CTRS main, string connectionString) : base(main, connectionString)
+		{
+			Task.Run(CreateTablesAsync);
+
+			// Load all tiers to the cache
+			Task.Run(async () => Tiers = await GetAllAsync());
+		}
+
 		public Task CreateTablesAsync()
 		{
 			return Task.Run(() =>

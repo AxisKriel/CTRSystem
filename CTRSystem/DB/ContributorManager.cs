@@ -48,6 +48,11 @@ namespace CTRSystem.DB
 			#endregion
 		}
 
+		public ContributorManager(CTRS main, string connectionString) : base(main, connectionString)
+		{
+			Task.Run(CreateTablesAsync);
+		}
+
 		/// <summary>
 		/// Creates all necessary tables if they don't exist.
 		/// </summary>

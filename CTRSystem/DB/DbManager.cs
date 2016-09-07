@@ -20,6 +20,11 @@ namespace CTRSystem.DB
 	{
 		protected CTRS Main;
 
+		/// <summary>
+		/// Used to open the connection to the database. If not set, the default connection string will be used.
+		/// </summary>
+		protected string ConnectionString { get; }
+
 		protected StorageType DbType => Main.Config.StorageType.Equals("mysql", StringComparison.OrdinalIgnoreCase)
 			? StorageType.MySQL
 			: StorageType.SQLite;
@@ -27,6 +32,11 @@ namespace CTRSystem.DB
 		public DbManager(CTRS main)
 		{
 			Main = main;
+		}
+
+		public DbManager(CTRS main, string connectionString) : this(main)
+		{
+			ConnectionString = connectionString;
 		}
 
 		/// <summary>
@@ -64,7 +74,7 @@ namespace CTRSystem.DB
 				string[] host = Main.Config.MySqlHost.Split(':');
 				connection = new MySqlConnection()
 				{
-					ConnectionString = String.Format("Server={0}; Port={1}; Database={2}; Uid={3}; Pwd={4};",
+					ConnectionString = ConnectionString ?? String.Format("Server={0}; Port={1}; Database={2}; Uid={3}; Pwd={4};",
 					host[0],
 					host.Length == 1 ? "3306" : host[1],
 					Main.Config.MySqlDbName,
@@ -74,7 +84,7 @@ namespace CTRSystem.DB
 			}
 			else
 			{
-				connection = new SqliteConnection(String.Format("uri=file://{0},Version=3",
+				connection = new SqliteConnection(ConnectionString ?? String.Format("uri=file://{0},Version=3",
 					Path.Combine(TShock.SavePath, "CTRSystem", "CTRS-Data.sqlite")));
 			}
 
