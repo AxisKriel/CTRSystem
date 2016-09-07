@@ -36,21 +36,19 @@ namespace CTRSystem
 			Order = 20001;
 		}
 
-		public Config Config { get; private set; }
+		public Config Config { get; protected internal set; }
 
-		public IDbConnection Db { get; private set; }
+		public CommandManager Commands { get; protected internal set; }
 
-		public CommandManager Commands { get; private set; }
+		public ContributorManager Contributors { get; protected internal set; }
 
-		public ContributorManager Contributors { get; private set; }
+		public LoginManager CredentialHelper { get; protected internal set; }
 
-		public LoginManager CredentialHelper { get; private set; }
+		public RestManager Rests { get; protected internal set; }
 
-		public RestManager Rests { get; private set; }
+		public TierManager Tiers { get; protected internal set; }
 
-		public TierManager Tiers { get; private set; }
-
-		public XenforoManager XenforoUsers { get; private set; }
+		public XenforoManager XenforoUsers { get; protected internal set; }
 
 		protected override void Dispose(bool disposing)
 		{

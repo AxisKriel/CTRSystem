@@ -54,7 +54,7 @@ namespace CTRSystem.DB
 
 			using (var db = OpenConnection())
 			{
-				return db.Query<int>(sb.ToString()).SingleOrDefault();
+				return db.QuerySingleOrDefault<int>(sb.ToString());
 			}
 		}
 

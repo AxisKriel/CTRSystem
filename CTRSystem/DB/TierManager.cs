@@ -1,11 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Data;
-using MySql.Data.MySqlClient;
-using TShockAPI;
 using Dapper;
+using TShockAPI;
 
 namespace CTRSystem.DB
 {
@@ -135,7 +134,7 @@ namespace CTRSystem.DB
 
 					using (var db = OpenConnection())
 					{
-						tier = (Tier)db.Query<Tier.DataModel>(tier_by_id, new { Id = id }).SingleOrDefault();
+						tier = (Tier)db.QuerySingleOrDefault<Tier.DataModel>(tier_by_id, new { Id = id });
 						if (tier == null)
 							throw new TierNotFoundException(id);
 						else
@@ -173,7 +172,7 @@ namespace CTRSystem.DB
 
 					using (var db = OpenConnection())
 					{
-						tier = (Tier)db.Query<Tier.DataModel>(tier_by_name, new { Name = name }).SingleOrDefault();
+						tier = (Tier)db.QuerySingleOrDefault<Tier.DataModel>(tier_by_name, new { Name = name });
 						if (tier == null)
 							throw new TierNotFoundException(name);
 						else
@@ -217,7 +216,7 @@ namespace CTRSystem.DB
 
 				using (var db = OpenConnection())
 				{
-					Tier tier = (Tier)db.Query<Tier.DataModel>(tier_by_credits, new { TotalCredits = totalcredits }).SingleOrDefault();
+					Tier tier = (Tier)db.QuerySingleOrDefault<Tier.DataModel>(tier_by_credits, new { TotalCredits = totalcredits });
 
 					if (tier != null)
 					{
@@ -245,7 +244,15 @@ namespace CTRSystem.DB
 
 				using (var db = OpenConnection())
 				{
-					return db.Query<Tier.DataModel>(select_all).Cast<Tier>().ToList();
+					IEnumerable<Tier.DataModel> result = db.Query<Tier.DataModel>(select_all);
+					var list = new List<Tier>();
+
+					foreach (Tier.DataModel m in result)
+					{
+						list.Add((Tier)m);
+					}
+
+					return list;
 				}
 			});
 		}

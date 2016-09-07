@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
 using TShockAPI;
@@ -392,18 +391,18 @@ namespace CTRSystem.DB
 
 			using (var db = OpenConnection())
 			{
-				contributorID = db.Query<int>(select_id, new { UserID = userID }).SingleOrDefault();
+				contributorID = db.QuerySingleOrDefault<int>(select_id, new { UserID = userID });
 
 				if (contributorID == 0)
 					return null;
 
-				Contributor con = (Contributor)db.Query<Contributor.DataModel>(select_con, new { Id = contributorID }).SingleOrDefault();
+				Contributor con = (Contributor)db.QuerySingleOrDefault<Contributor.DataModel>(select_con, new { Id = contributorID });
 
 				// The foreign key constraints would have to fail for this to happen, but better safe than sorry
 				if (con == null)
 					return null;
 
-				con.Accounts = db.Query<int>(select_a, con.ToDataModel()).ToList();
+				con.Accounts = new List<int>(db.Query<int>(select_a, con.ToDataModel()));
 				return con;
 			}
 		}
@@ -441,12 +440,12 @@ namespace CTRSystem.DB
 
 			using (var db = OpenConnection())
 			{
-				Contributor con = (Contributor)db.Query<Contributor.DataModel>(select_con, new { XenforoID = xenforoID }).SingleOrDefault();
+				Contributor con = (Contributor)db.QuerySingleOrDefault<Contributor.DataModel>(select_con, new { XenforoID = xenforoID });
 				
 				if (con == null)
 					return null;
 
-				con.Accounts = db.Query<int>(select_a, con.ToDataModel()).ToList();
+				con.Accounts = new List<int>(db.Query<int>(select_a, con.ToDataModel()));
 				return con;
 			}
 		}
@@ -510,9 +509,11 @@ namespace CTRSystem.DB
 			}
 			catch (Exception ex)
 			{
-				TShock.Log.ConsoleError("CTRS: An error occurred while updating a contributor's (ACCOUNT: "
-					+ $"{contributor.Accounts.ElementAtOrDefault(0)}) info\nMessage: {ex.Message}"
-					+ "\nCheck logs for more details");
+				TShock.Log.ConsoleError("{0}\n{1}\n{2}",
+					"CTRS: An error occurred while updating a contributor's info",
+					$"Message: {ex.Message}",
+					"Check logs for more details");
+
 				TShock.Log.Error(ex.ToString());
 				return false;
 			}
