@@ -256,7 +256,7 @@ namespace CTRSystem
 				}
 
 				args.Player.SendMessage($"{Tag} Contributions Track & Reward System v{_main.Version}", Color.LightGreen);
-				foreach (string s in Texts.SplitIntoLines(_main.Config.FormatInfo(args.Player, con, xfuser.Credits, tier, nextTier)))
+				foreach (string s in Texts.SplitIntoLines(_main.Formatter.FormatInfo(args.Player, con, xfuser.Credits, tier, nextTier)))
 				{
 					args.Player.SendInfoMessage($"{Tag} {s}");
 				}

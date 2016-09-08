@@ -143,7 +143,7 @@ namespace CTRSystem.DB
 
 				// If the player is online, notify them about the transaction
 				foreach (string s in Texts.SplitIntoLines(
-					_scope.Config.FormatNewDonation(_receiver, this, LastAmount)))
+					_scope.Formatter.FormatNewDonation(_receiver, this, LastAmount)))
 				{
 					_receiver.SendInfoMessage(s);
 				}
@@ -157,7 +157,7 @@ namespace CTRSystem.DB
 					await Task.Delay(_scope.Config.NotificationCheckSeconds);
 
 					foreach (string s in Texts.SplitIntoLines(
-						_scope.Config.FormatNewTier(_receiver, this, _scope.Tiers.Get(Tier))))
+						_scope.Formatter.FormatNewTier(_receiver, this, _scope.Tiers.Get(Tier))))
 					{
 						_receiver.SendInfoMessage(s);
 					}
@@ -257,7 +257,7 @@ namespace CTRSystem.DB
 			{
 				// Do Introduction message
 				foreach (string s in Texts.SplitIntoLines(
-					_scope.Config.FormatIntroduction(_receiver, this)))
+					_scope.Formatter.FormatIntroduction(_receiver, this)))
 				{
 					_receiver.SendInfoMessage(s);
 				}
@@ -276,7 +276,7 @@ namespace CTRSystem.DB
 				{
 					// Do NewDonation message
 					foreach (string s in Texts.SplitIntoLines(
-						_scope.Config.FormatNewDonation(_receiver, this, LastAmount)))
+						_scope.Formatter.FormatNewDonation(_receiver, this, LastAmount)))
 					{
 						_receiver.SendInfoMessage(s);
 					}
@@ -288,7 +288,7 @@ namespace CTRSystem.DB
 				{
 					// Do Tier Rank Up message
 					foreach (string s in Texts.SplitIntoLines(
-						_scope.Config.FormatNewTier(_receiver, this, _scope.Tiers.Get(Tier))))
+						_scope.Formatter.FormatNewTier(_receiver, this, _scope.Tiers.Get(Tier))))
 					{
 						_receiver.SendInfoMessage(s);
 					}

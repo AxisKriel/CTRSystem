@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Timers;
+using CTRSystem.Configuration;
 using CTRSystem.DB;
 using CTRSystem.Extensions;
 using MySql.Data.MySqlClient;
@@ -14,7 +15,6 @@ using TShockAPI;
 using TShockAPI.Hooks;
 using Wolfje.Plugins.SEconomy;
 using Wolfje.Plugins.SEconomy.Journal;
-using Config = CTRSystem.Configuration.ConfigFile;
 
 namespace CTRSystem
 {
@@ -36,7 +36,7 @@ namespace CTRSystem
 			Order = 20001;
 		}
 
-		public Config Config { get; protected internal set; }
+		public Configuration.ConfigFile Config { get; protected internal set; }
 
 		public CommandManager Commands { get; protected internal set; }
 
@@ -45,6 +45,8 @@ namespace CTRSystem
 		public LoginManager CredentialHelper { get; protected internal set; }
 
 		public RestManager Rests { get; protected internal set; }
+
+		public TextFormatter Formatter { get; protected internal set; }
 
 		public TierManager Tiers { get; protected internal set; }
 
@@ -168,7 +170,8 @@ namespace CTRSystem
 			#region Config
 
 			string path = Path.Combine(TShock.SavePath, "CTRSystem", "CTRS-Config.json");
-			Config = Config.Read(this, path);
+			Config = Configuration.ConfigFile.Read(path);
+			Formatter = new TextFormatter(this, Config);
 
 			#endregion
 
@@ -286,7 +289,7 @@ namespace CTRSystem
 		void OnReload(ReloadEventArgs e)
 		{
 			string path = Path.Combine(TShock.SavePath, "CTRSystem", "CTRS-Config.json");
-			Config = Config.Read(this, path);
+			Config = Configuration.ConfigFile.Read(path);
 
 			if ((Config.TierRefreshMinutes * 60 * 1000) != _tierUpdateTimer.Interval)
 			{

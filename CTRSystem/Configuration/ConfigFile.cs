@@ -8,8 +8,6 @@ namespace CTRSystem.Configuration
 {
 	public class ConfigFile
 	{
-		private CTRS _main;
-
 		public int AccountLimit { get; set; } = 0;
 
 		public string StorageType { get; set; } = "sqlite";
@@ -64,12 +62,12 @@ namespace CTRSystem.Configuration
 
 		public Texts Texts { get; set; } = new Texts();
 
-		public static ConfigFile Read(CTRS main, string path)
+		public static ConfigFile Read(string path)
 		{
 			if (String.IsNullOrWhiteSpace(path))
 			{
 				TShock.Log.ConsoleError("CTRS-Config: Invalid filepath given. Starting default configuration...");
-				return new ConfigFile() { _main = main };
+				return new ConfigFile();
 			}
 
 			Directory.CreateDirectory(Path.GetDirectoryName(path));
@@ -81,74 +79,19 @@ namespace CTRSystem.Configuration
 					file = JsonConvert.DeserializeObject<ConfigFile>(File.ReadAllText(path));
 				}
 				File.WriteAllText(path, JsonConvert.SerializeObject(file, Formatting.Indented));
-				file._main = main;
 				return file;
 			}
 			catch (Exception e)
 			{
 				TShock.Log.ConsoleError("CTRS-Config: " + e.Message);
 				TShock.Log.Error(e.ToString());
-				return new ConfigFile() { _main = main };
+				return new ConfigFile();
 			}
 		}
 
 		public string GetContributeURL()
 		{
 			return TShock.Utils.ColorTag(ContributeURL, Color.LightGreen);
-		}
-
-		// 0 - player name
-		public string FormatIntroduction(TSPlayer player, Contributor contributor)
-		{
-			return String.Format(Texts.Introduction,
-				player.Name);
-		}
-
-		/// <summary>
-		/// Formats the info message sent to players when they use the info command.
-		/// {0} - Player Name
-		/// {1} - Accounts (comma separated if more than one)
-		/// {2} - WebID
-		/// {3} - Credits
-		/// {4} - TotalCredits
-		/// {5} - LastDonation (dd-MMM-yyyy)
-		/// {6} - Tier.Name with ChatColor
-		/// {7} - NextTier.Name
-		/// {8} - CreditsForNextTier
-		/// {9} - ChatColor
-		/// {10} - Experience Multiplier in percentage aditive: 1.10 = '10%'
-		/// {11} - Experience Multiplier in percentage total: 1.10 = '110%'
-		/// </summary>
-		/// <param name="player">The contributor to take elements from.</param>
-		/// <returns>The formatted string.</returns>
-		public string FormatInfo(TSPlayer player, Contributor contributor, float credits, Tier tier = null, Tier nextTier = null)
-		{
-
-			return String.Format(Texts.Info,
-				player.Name,
-				contributor.Accounts.Count == 0 ? "N/A" : String.Join(",", contributor.Accounts),
-				contributor.XenforoId.HasValue ? contributor.XenforoId.Value.ToString() : "N/A",
-				String.Format(_main.Config.CreditsFormat, (int)credits),
-				String.Format(_main.Config.CreditsFormat, (int)contributor.TotalCredits),
-				!contributor.LastDonation.HasValue ? "N/A" : contributor.LastDonation.Value.ToString("d-MMM-yyyy"),
-				tier != null ? tier.ChatColor.HasValue ? TShock.Utils.ColorTag(tier.Name, tier.ChatColor.Value) : tier.Name : "N/A",
-				nextTier != null ? nextTier.ChatColor.HasValue ? TShock.Utils.ColorTag(nextTier.Name, nextTier.ChatColor.Value) : nextTier.Name : "N/A",
-				String.Format(_main.Config.CreditsFormat, (nextTier != null && tier != null) ? ((int)(nextTier.CreditsRequired - credits)).ToString() : "N/A"),
-				Tools.ColorToRGB(contributor.ChatColor),
-				tier != null ? $"{Math.Round(tier.ExperienceMultiplier * 100 - 100)}%" : "0%",
-				tier != null ? $"{Math.Round(tier.ExperienceMultiplier * 100)}%" : "100%");
-		}
-
-		// 0 - player name | 1 - Tier.Name with ChatColor
-		public string FormatNewTier(TSPlayer player, Contributor contributor, Tier tier)
-		{
-			return String.Format(Texts.NewTier, player.Name, tier.ChatColor.HasValue ? TShock.Utils.ColorTag(tier.Name, tier.ChatColor.Value) : tier.Name);
-		}
-
-		// 0 - player name | 1 - amount formatted to credits
-		public string FormatNewDonation(TSPlayer player, Contributor contributor, float amount)
-		{
-			return String.Format(Texts.NewDonation, player.Name, String.Format(_main.Config.CreditsFormat, (int)amount));
 		}
 	}
 }

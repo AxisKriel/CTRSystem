@@ -67,6 +67,7 @@
   <ItemGroup>
     <Compile Include="CommandManager.cs" />
     <Compile Include="Configuration\ConfigFile.cs" />
+    <Compile Include="Configuration\TextFormatter.cs" />
     <Compile Include="Configuration\Texts.cs" />
     <Compile Include="Configuration\XenforoConfig.cs" />
     <Compile Include="CTRS.cs" />
