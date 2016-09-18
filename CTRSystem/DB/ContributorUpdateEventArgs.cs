@@ -2,8 +2,6 @@
 
 namespace CTRSystem.DB
 {
-	public delegate void TransactionHandler(TransactionEventArgs args);
-
 	public class ContributorUpdateEventArgs : EventArgs
 	{
 		public int ContributorId { get; private set; }

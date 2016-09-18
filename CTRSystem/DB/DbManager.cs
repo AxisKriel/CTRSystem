@@ -65,7 +65,7 @@ namespace CTRSystem.DB
 		/// Best used with a <see cref="using"/> statement.
 		/// This will automatically close the connection afterwards.</remarks>
 		/// <returns>The connection that was just made.</returns>
-		protected IDbConnection OpenConnection()
+		protected virtual IDbConnection OpenConnection()
 		{
 			IDbConnection connection;
 

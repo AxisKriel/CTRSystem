@@ -204,21 +204,6 @@ namespace CTRSystem
 
 			#endregion
 
-			#region DB
-
-			string[] _host = Config.Xenforo.MySqlHost.Split(':');
-			var xfdb = new MySqlConnection()
-			{
-				ConnectionString = String.Format("Server={0}; Port={1}; Database={2}; Uid={3}; Pwd={4};",
-					_host[0],
-					_host.Length == 1 ? "3306" : _host[1],
-					Config.Xenforo.MySqlDbName,
-					Config.Xenforo.MySqlUsername,
-					Config.Xenforo.MySqlPassword)
-			};
-
-			#endregion
-
 			_tierUpdateTimer = new Timer(Config.TierRefreshMinutes * 60 * 1000);
 			_tierUpdateTimer.Elapsed += UpdateTiers;
 			_tierUpdateTimer.Start();

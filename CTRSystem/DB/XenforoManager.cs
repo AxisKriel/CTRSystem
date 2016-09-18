@@ -1,4 +1,6 @@
-﻿using System.Linq;
+﻿using System;
+using System.Data;
+using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
 using MySql.Data.MySqlClient;
@@ -23,6 +25,21 @@ namespace CTRSystem.DB
 			{
 				// A duplicate column error is thrown if it already exists. Disregard.
 			}
+		}
+
+		/// <inheritdoc/>
+		protected override IDbConnection OpenConnection()
+		{
+			string[] host = Main.Config.Xenforo.MySqlHost.Split(':');
+			return new MySqlConnection
+			{
+				ConnectionString = String.Format("Server={0}; Port={1}; Database={2}; Uid={3}; Pwd={4};",
+					host[0],
+					host.Length == 1 ? "3306" : host[1],
+					Main.Config.Xenforo.MySqlDbName,
+					Main.Config.Xenforo.MySqlUsername,
+					Main.Config.Xenforo.MySqlPassword)
+			};
 		}
 
 		public Task<XFUser> GetAsync(int tshockID)
