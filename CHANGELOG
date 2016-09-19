@@ -1,3 +1,9 @@
+2.2
+ * Removed contributor cache; contributor objects are now stored using TSPlayer's Get/SetData methods.
+ * Added new REST routes: `ctrs/v2/transaction/{xenforoId}` is now the default transaction route and should be used over the original at all times.
+ * Refactored DbManagers: Started using Dapper over TShockAPI.DB extensions, general code improvements.
+ * Added a [Discord Bridge](https://github.com/Enerdy/DiscordBridge) branch.
+
 2.1.0
  * Accounts are now stored on a separate table as single values instead of csv, supporting atomical search
  * Removed sync states; Contributors are now always fetched during /auth, login and logout, being cached for use on permission checks, chat and seconomy transactions.

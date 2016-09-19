@@ -8,6 +8,7 @@ using System.Timers;
 using CTRSystem.Configuration;
 using CTRSystem.DB;
 using CTRSystem.Extensions;
+using DiscordBridge.Chat;
 using MySql.Data.MySqlClient;
 using Terraria;
 using TerrariaApi.Server;
@@ -56,12 +57,12 @@ namespace CTRSystem
 		{
 			if (disposing)
 			{
+				ChatHandler.PlayerChatting -= OnChat;
 				GeneralHooks.ReloadEvent -= OnReload;
 				PlayerHooks.PlayerLogout -= OnLogout;
 				PlayerHooks.PlayerPermission -= OnPlayerPermission;
 				PlayerHooks.PlayerPostLogin -= OnLogin;
 				ServerApi.Hooks.GameInitialize.Deregister(this, OnInitialize);
-				ServerApi.Hooks.ServerChat.Deregister(this, OnChat);
 
 				if (SEconomyPlugin.Instance != null)
 				{
@@ -76,12 +77,12 @@ namespace CTRSystem
 
 		public override void Initialize()
 		{
+			ChatHandler.PlayerChatting += OnChat;
 			GeneralHooks.ReloadEvent += OnReload;
 			PlayerHooks.PlayerPermission += OnPlayerPermission;
 			PlayerHooks.PlayerPostLogin += OnLogin;
 			PlayerHooks.PlayerLogout += OnLogout;
 			ServerApi.Hooks.GameInitialize.Register(this, OnInitialize);
-			ServerApi.Hooks.ServerChat.Register(this, OnChat);
 
 			if (SEconomyPlugin.Instance != null)
 			{
@@ -95,73 +96,34 @@ namespace CTRSystem
 			}
 		}
 
-		void OnChat(ServerChatEventArgs e)
+		void OnChat(object sender, PlayerChattingEventArgs e)
 		{
-			if (e.Handled)
-				return;
-
-			// A quick check to reduce DB work when this feature isn't in use
-			if (String.IsNullOrWhiteSpace(Config.ContributorChatFormat))
-				return;
-
-			var player = TShock.Players[e.Who];
-			if (player == null || !player.Active || !player.IsLoggedIn || !player.ContainsData(Contributor.DataKey))
-				return;
-
-			if (e.Text.Length > 500)
-				return;
-
-			// If true, the message is a command, so we skip it
-			if ((e.Text.StartsWith(TShockAPI.Commands.Specifier) || e.Text.StartsWith(TShockAPI.Commands.SilentSpecifier))
-				&& !String.IsNullOrWhiteSpace(e.Text.Substring(1)))
-				return;
-
-			// Player needs to be able to talk, not be muted, and must be logged in
-			if (!player.HasPermission(TShockAPI.Permissions.canchat) || player.mute || !player.IsLoggedIn)
+			if (!e.Player.IsLoggedIn || !e.Player.ContainsData(Contributor.DataKey))
 				return;
 
 			// At this point, ChatAboveHeads is not supported, but it could be a thing in the future
 			if (!TShock.Config.EnableChatAboveHeads)
 			{
-				Contributor con = player.GetData<Contributor>(Contributor.DataKey);
+				Contributor con = e.Player.GetData<Contributor>(Contributor.DataKey);
 				Tier tier = Tiers.Get(con.Tier);
 
-				/* Contributor chat format:
-					{0} - group name
-					{1} - group prefix
-					{2} - player name
-					{3} - group suffix
-					{4} - message text
-					{5} - tier shortname
-					{6} - tier name
-					{7} - webID
-				 */
-				var text = String.Format(Config.ContributorChatFormat, player.Group.Name, player.Group.Prefix, player.Name,
-					player.Group.Suffix, e.Text, tier.ShortName ?? "", tier.Name ?? "", con.XenforoId ?? -1);
-				PlayerHooks.OnPlayerChat(player, e.Text, ref text);
+				e.ChatFormatters.Add("contributorTier", tier.Name ?? "");
+				e.ChatFormatters.Add("contributorTierShort", tier.ShortName ?? "");
+				e.ChatFormatters.Add("contributorId", (con.XenforoId ?? -1).ToString());
+
 				Color? color = con.ChatColor;
 				if (!color.HasValue)
 				{
-					#region DEBUG
-#if DEBUG
-					TShock.Log.ConsoleInfo("OnChat: Contributor color was null");
-#endif
-					#endregion
 					// If the contributor doesn't have a custom chat color, check their tier
 					color = tier.ChatColor;
 					if (!color.HasValue)
 					{
 						// As neither the tier nor the contributor have a custom chat color, use the group's default
-						color = new Color(player.Group.R, player.Group.G, player.Group.B);
+						color = new Color(e.Player.Group.R, e.Player.Group.G, e.Player.Group.B);
 					}
 				}
-				TShock.Utils.Broadcast(text, color.Value.R, color.Value.G, color.Value.B);
-				#region
-#if DEBUG
-				TShock.Log.ConsoleInfo("OnChat: Contributor was handled by CTRS");
-#endif
-				#endregion
-				e.Handled = true;
+
+				e.ColorFormatters.Add("Contributor", color);
 			}
 		}
 

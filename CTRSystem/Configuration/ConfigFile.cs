@@ -36,8 +36,6 @@ namespace CTRSystem.Configuration
 			"contributions"
 		};
 
-		public string ContributorChatFormat { get; set; } = TShock.Config.ChatFormat;
-
 		public string ContributeURL { get; set; } = "sbplanet.co/forums/index.php?adcredits/packages";
 
 		public string AuthCodeGetURL { get; set; } = "sbplanet.co/forums/link-account.php";

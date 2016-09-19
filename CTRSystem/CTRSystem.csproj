@@ -34,6 +34,9 @@
       <HintPath>..\packages\Dapper.1.50.2\lib\net451\Dapper.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="DiscordBridge">
+      <HintPath>References\DiscordBridge.dll</HintPath>
+    </Reference>
     <Reference Include="HttpServer">
       <HintPath>References\HttpServer.dll</HintPath>
     </Reference>
