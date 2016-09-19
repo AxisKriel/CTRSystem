@@ -30,6 +30,8 @@ namespace CTRSystem.Configuration
 
 		public string CreditsFormat { get; set; } = "{0} credit(s)";
 
+		public string PrefixFormat { get; set; } = "<{0}> ";
+
 		public string[] AdditionalCommandAliases { get; set; } = new []
 		{
 			"ctrsystem",

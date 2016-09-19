@@ -107,8 +107,8 @@ namespace CTRSystem
 				Contributor con = e.Player.GetData<Contributor>(Contributor.DataKey);
 				Tier tier = Tiers.Get(con.Tier);
 
-				e.ChatFormatters.Add("contributorTier", tier.Name ?? "");
-				e.ChatFormatters.Add("contributorTierShort", tier.ShortName ?? "");
+				e.ChatFormatters.Add("contributorTier", String.Format(Config.PrefixFormat, tier.Name ?? ""));
+				e.ChatFormatters.Add("contributorTierShort", String.Format(Config.PrefixFormat, tier.ShortName ?? ""));
 				e.ChatFormatters.Add("contributorId", (con.XenforoId ?? -1).ToString());
 
 				Color? color = con.ChatColor;
