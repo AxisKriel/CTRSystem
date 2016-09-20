@@ -98,32 +98,41 @@ namespace CTRSystem
 
 		void OnChat(object sender, PlayerChattingEventArgs e)
 		{
-			if (!e.Player.IsLoggedIn || !e.Player.ContainsData(Contributor.DataKey))
+			if (!e.Player.IsLoggedIn)
 				return;
 
 			// At this point, ChatAboveHeads is not supported, but it could be a thing in the future
 			if (!TShock.Config.EnableChatAboveHeads)
 			{
-				Contributor con = e.Player.GetData<Contributor>(Contributor.DataKey);
-				Tier tier = Tiers.Get(con.Tier);
-
-				e.ChatFormatters.Add("contributorTier", String.Format(Config.PrefixFormat, tier.Name ?? ""));
-				e.ChatFormatters.Add("contributorTierShort", String.Format(Config.PrefixFormat, tier.ShortName ?? ""));
-				e.ChatFormatters.Add("contributorId", (con.XenforoId ?? -1).ToString());
-
-				Color? color = con.ChatColor;
-				if (!color.HasValue)
+				// Right now we always need to add the key, even if it is to default to the group's color
+				if (!e.Player.ContainsData(Contributor.DataKey))
+					e.ColorFormatters.Add("Contributor", new Color(e.Player.Group.R, e.Player.Group.G, e.Player.Group.B));
+				else
 				{
-					// If the contributor doesn't have a custom chat color, check their tier
-					color = tier.ChatColor;
+
+					Contributor con = e.Player.GetData<Contributor>(Contributor.DataKey);
+					Tier tier = Tiers.Get(con.Tier);
+
+					e.ChatFormatters.Add("contributorTier", String.Format(Config.PrefixFormat, tier.Name ?? ""));
+					e.ChatFormatters.Add("contributorTierShort", String.Format(Config.PrefixFormat, tier.ShortName ?? ""));
+					e.ChatFormatters.Add("contributorId", (con.XenforoId ?? -1).ToString());
+
+					Color? color = con.ChatColor;
 					if (!color.HasValue)
 					{
-						// As neither the tier nor the contributor have a custom chat color, use the group's default
-						color = new Color(e.Player.Group.R, e.Player.Group.G, e.Player.Group.B);
-					}
-				}
+						// If the contributor doesn't have a custom chat color, check their tier
+						color = tier.ChatColor;
+						e.ColorFormatters.Add("ContributorTier", color);
 
-				e.ColorFormatters.Add("Contributor", color);
+						if (!color.HasValue)
+						{
+							// As neither the tier nor the contributor have a custom chat color, use the group's default
+							color = new Color(e.Player.Group.R, e.Player.Group.G, e.Player.Group.B);
+						}
+					}
+
+					e.ColorFormatters.Add("Contributor", color);
+				}
 			}
 		}
 
@@ -274,7 +283,7 @@ namespace CTRSystem
 			{
 				// Find the player (note: could be troublesome if multiple login is enabled)
 				var player = (from p in TShock.Players
-							  where p.IsLoggedIn && p.User.Name == e.ToAccount.UserAccountName
+							  where p != null && p.IsLoggedIn && p.User?.Name == e.ToAccount.UserAccountName
 							  && p.ContainsData(Contributor.DataKey)
 							  select p).FirstOrDefault();
 
