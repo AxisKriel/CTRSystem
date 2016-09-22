@@ -57,12 +57,12 @@ namespace CTRSystem
 		{
 			if (disposing)
 			{
-				ChatHandler.PlayerChatting -= OnChat;
-				GeneralHooks.ReloadEvent -= OnReload;
-				PlayerHooks.PlayerLogout -= OnLogout;
-				PlayerHooks.PlayerPermission -= OnPlayerPermission;
-				PlayerHooks.PlayerPostLogin -= OnLogin;
-				ServerApi.Hooks.GameInitialize.Deregister(this, OnInitialize);
+				ChatHandler.PlayerChatting -= onChat;
+				GeneralHooks.ReloadEvent -= onReload;
+				PlayerHooks.PlayerLogout -= onLogout;
+				PlayerHooks.PlayerPermission -= onPlayerPermission;
+				PlayerHooks.PlayerPostLogin -= onLogin;
+				ServerApi.Hooks.GameInitialize.Deregister(this, onInitialize);
 
 				if (SEconomyPlugin.Instance != null)
 				{
@@ -71,18 +71,18 @@ namespace CTRSystem
 				}
 
 				_tierUpdateTimer.Stop();
-				_tierUpdateTimer.Elapsed -= UpdateTiers;
+				_tierUpdateTimer.Elapsed -= updateTiers;
 			}
 		}
 
 		public override void Initialize()
 		{
-			ChatHandler.PlayerChatting += OnChat;
-			GeneralHooks.ReloadEvent += OnReload;
-			PlayerHooks.PlayerPermission += OnPlayerPermission;
-			PlayerHooks.PlayerPostLogin += OnLogin;
-			PlayerHooks.PlayerLogout += OnLogout;
-			ServerApi.Hooks.GameInitialize.Register(this, OnInitialize);
+			ChatHandler.PlayerChatting += onChat;
+			GeneralHooks.ReloadEvent += onReload;
+			PlayerHooks.PlayerPermission += onPlayerPermission;
+			PlayerHooks.PlayerPostLogin += onLogin;
+			PlayerHooks.PlayerLogout += onLogout;
+			ServerApi.Hooks.GameInitialize.Register(this, onInitialize);
 
 			if (SEconomyPlugin.Instance != null)
 			{
@@ -92,11 +92,11 @@ namespace CTRSystem
 				// Initial hooking, as SEconomyLoaded has already been called
 				// Disabling async until a way of making it work with the display is found
 				// SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += MultiplyExpAsync;
-				SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += MultiplyExp;
+				SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += multiplyExp;
 			}
 		}
 
-		void OnChat(object sender, PlayerChattingEventArgs e)
+		void onChat(object sender, PlayerChattingEventArgs e)
 		{
 			if (!e.Player.IsLoggedIn)
 				return;
@@ -136,7 +136,7 @@ namespace CTRSystem
 			}
 		}
 
-		void OnInitialize(EventArgs e)
+		void onInitialize(EventArgs e)
 		{
 			#region Config
 
@@ -176,7 +176,7 @@ namespace CTRSystem
 			#endregion
 
 			_tierUpdateTimer = new Timer(Config.TierRefreshMinutes * 60 * 1000);
-			_tierUpdateTimer.Elapsed += UpdateTiers;
+			_tierUpdateTimer.Elapsed += updateTiers;
 			_tierUpdateTimer.Start();
 
 			Contributors = new ContributorManager(this);
@@ -186,7 +186,7 @@ namespace CTRSystem
 			XenforoUsers = new XenforoManager(this);
 		}
 
-		async void OnLogin(PlayerPostLoginEventArgs e)
+		async void onLogin(PlayerPostLoginEventArgs e)
 		{
 			try
 			{
@@ -209,7 +209,7 @@ namespace CTRSystem
 			}
 		}
 
-		void OnLogout(PlayerLogoutEventArgs e)
+		void onLogout(PlayerLogoutEventArgs e)
 		{
 			if (e.Player.ContainsData(Contributor.DataKey))
 			{
@@ -219,7 +219,7 @@ namespace CTRSystem
 			}
 		}
 
-		void OnPlayerPermission(PlayerPermissionEventArgs e)
+		void onPlayerPermission(PlayerPermissionEventArgs e)
 		{
 			// If the player isn't logged it, he's certainly not a contributor
 			if (e.Player == null || !e.Player.IsLoggedIn || !e.Player.ContainsData(Contributor.DataKey))
@@ -242,7 +242,7 @@ namespace CTRSystem
 			#endregion
 		}
 
-		void OnReload(ReloadEventArgs e)
+		void onReload(ReloadEventArgs e)
 		{
 			string path = Path.Combine(TShock.SavePath, "CTRSystem", "CTRS-Config.json");
 			Config = Configuration.ConfigFile.Read(path);
@@ -262,17 +262,17 @@ namespace CTRSystem
 		{
 			// Disabling async until a way of making it work with the display is found
 			//SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += MultiplyExpAsync;
-			SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += MultiplyExp;
+			SEconomyPlugin.Instance.RunningJournal.BankTransactionPending += multiplyExp;
 		}
 
 		void SEconomyUnloaded(object sender, EventArgs e)
 		{
 			// Disabling async until a way of making it work with the display is found
 			//SEconomyPlugin.Instance.RunningJournal.BankTransactionPending -= MultiplyExpAsync;
-			SEconomyPlugin.Instance.RunningJournal.BankTransactionPending -= MultiplyExp;
+			SEconomyPlugin.Instance.RunningJournal.BankTransactionPending -= multiplyExp;
 		}
 
-		void MultiplyExp(object sender, PendingTransactionEventArgs e)
+		void multiplyExp(object sender, PendingTransactionEventArgs e)
 		{
 			// Should only work with system accounts as this will also make the sender pay more currency
 			if (SEconomyPlugin.Instance != null
@@ -310,7 +310,7 @@ namespace CTRSystem
 
 		#endregion
 
-		void UpdateTiers(object sender, ElapsedEventArgs e)
+		void updateTiers(object sender, ElapsedEventArgs e)
 		{
 			try
 			{
