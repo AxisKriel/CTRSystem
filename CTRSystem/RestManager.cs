@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Threading.Tasks;
 using CTRSystem.DB;
 using CTRSystem.Extensions;
+using CTRSystem.Framework;
 using HttpServer;
 using Rests;
 using TShockAPI;
@@ -16,12 +18,12 @@ namespace CTRSystem
 		/// Occurs after a contributor has been updated.
 		/// Contributor objects should hook to this event to properly follow changes.
 		/// </summary>
-		public event EventHandler<ContributorUpdateEventArgs> ContributorUpdate;
+		public AsyncEvent<ContributorUpdateEventArgs> ContributorUpdate;
 
 		/// <summary>
 		/// Occurs after a contributor receives a new transaction.
 		/// </summary>
-		public event EventHandler<TransactionEventArgs> Transaction;
+		public AsyncEvent<TransactionEventArgs> Transaction;
 
 		/// <summary>
 		/// Initializes a new instance of the <see cref="RestManager"/> class.
@@ -121,7 +123,7 @@ namespace CTRSystem
 		[Noun("credits", true, "The amount of credits to transfer.", typeof(Int32))]
 		[Noun("date", true, "The date on which the original transaction was performed, as a Int64 unix timestamp.", typeof(Int64))]
 		[Token]
-		object restNewTransactionV2(RestRequestArgs args)
+		async Task<object> restNewTransactionV2(RestRequestArgs args)
 		{
 			int userID;
 
@@ -160,7 +162,7 @@ namespace CTRSystem
 				}
 
 				// Fire the Transaction event (must be done after Add to include the contributor Id)
-				Transaction?.Invoke(_main.Contributors, new TransactionEventArgs(con.Id, credits, dateUnix.FromUnixTime()));
+				await Transaction?.InvokeAsync(_main.Contributors, new TransactionEventArgs(con.Id, credits, dateUnix.FromUnixTime()));
 			}
 			else
 			{
@@ -180,7 +182,7 @@ namespace CTRSystem
 
 				// Fire the Transaction event
 				var transactionArgs = new TransactionEventArgs(con.Id, credits, dateUnix.FromUnixTime());
-				Transaction?.Invoke(_main.Contributors, transactionArgs);
+				await Transaction?.InvokeAsync(_main.Contributors, transactionArgs);
 
 				// Suppress notifications if needed
 				if (!transactionArgs.SuppressNotifications)
@@ -213,7 +215,7 @@ namespace CTRSystem
 		[Verb("user_id", "The database ID of the Xenforo user account.", typeof(Int32))]
 		[Noun("updates", true, "A list of updates to be run.", typeof(ContributorUpdates))]
 		[Token]
-		object restUpdateContributorV2(RestRequestArgs args)
+		async Task<object> restUpdateContributorV2(RestRequestArgs args)
 		{
 			int xenforoId;
 
@@ -228,11 +230,11 @@ namespace CTRSystem
 			if (!Enum.TryParse(args.Parameters["updates"], out updates))
 				return RestInvalidParam("updates");
 
-			Contributor con = _main.Contributors.GetByXenforoId(xenforoId);
+			Contributor con = await _main.Contributors.GetByXenforoIdAsync(xenforoId);
 			if (con != null)
 			{
 				// Fire the Contributor Update event and let any listener pick it up
-				ContributorUpdate?.Invoke(this, new ContributorUpdateEventArgs(con, updates));
+				await ContributorUpdate?.InvokeAsync(this, new ContributorUpdateEventArgs(con, updates));
 			}
 
 			// Possible improvement: send different response if something was certainly updated?

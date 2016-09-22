@@ -87,6 +87,7 @@
     <Compile Include="Extensions\DateTimeExtensions.cs" />
     <Compile Include="Extensions\Int64Extensions.cs" />
     <Compile Include="Extensions\ListExtensions.cs" />
+    <Compile Include="Framework\AsyncEvent.cs" />
     <Compile Include="LoginManager.cs" />
     <Compile Include="Permissions.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

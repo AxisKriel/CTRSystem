@@ -132,10 +132,13 @@ namespace CTRSystem.DB
 			Accounts.Add(user.ID);
 		}
 
-		private async void OnTransaction(object sender, TransactionEventArgs e)
+		private async Task onTransaction(object sender, TransactionEventArgs e)
 		{
 			if (e.ContributorId == Id)
 			{
+				// Suppress notifications from being set on the database
+				e.SuppressNotifications = true;
+
 				LastAmount = e.Credits;
 				if (e.Date.HasValue)
 					LastDonation = e.Date.Value;
@@ -154,7 +157,7 @@ namespace CTRSystem.DB
 				if (Tier != oldTier)
 				{
 					// Delay the message according to the config
-					await Task.Delay(_scope.Config.NotificationCheckSeconds);
+					await Task.Delay(_scope.Config.NotificationCheckSeconds * 1000);
 
 					foreach (string s in Texts.SplitIntoLines(
 						_scope.Formatter.FormatNewTier(_receiver, this, _scope.Tiers.Get(Tier))))
@@ -162,13 +165,10 @@ namespace CTRSystem.DB
 						_receiver.SendInfoMessage(s);
 					}
 				}
-
-				// Suppress notifications from being set on the database
-				e.SuppressNotifications = true;
 			}
 		}
 
-		private async void OnUpdate(object sender, ContributorUpdateEventArgs e)
+		private async Task onUpdate(object sender, ContributorUpdateEventArgs e)
 		{
 			if (e.ContributorId == Id)
 			{
@@ -214,8 +214,8 @@ namespace CTRSystem.DB
 			_receiver = player;
 			_scope = scope;
 
-			_scope.Rests.ContributorUpdate += OnUpdate;
-			_scope.Rests.Transaction += OnTransaction;
+			_scope.Rests.ContributorUpdate += onUpdate;
+			_scope.Rests.Transaction += onTransaction;
 		}
 
 		/// <summary>
@@ -225,8 +225,8 @@ namespace CTRSystem.DB
 		{
 			if (_scope != null)
 			{
-				_scope.Rests.ContributorUpdate -= OnUpdate;
-				_scope.Rests.Transaction -= OnTransaction;
+				_scope.Rests.ContributorUpdate -= onUpdate;
+				_scope.Rests.Transaction -= onTransaction;
 			}
 		}
 
@@ -280,7 +280,7 @@ namespace CTRSystem.DB
 					{
 						_receiver.SendInfoMessage(s);
 					}
-					Notifications ^= Notifications.NewDonation;
+					Notifications &= ~Notifications.NewDonation;
 					updates |= ContributorUpdates.Notifications;
 				}
 
@@ -292,7 +292,7 @@ namespace CTRSystem.DB
 					{
 						_receiver.SendInfoMessage(s);
 					}
-					Notifications ^= Notifications.NewTier;
+					Notifications &= ~Notifications.NewTier;
 					updates |= ContributorUpdates.Notifications;
 				}
 

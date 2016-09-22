@@ -278,7 +278,7 @@ namespace CTRSystem.DB
 					if (!suppressNotifications)
 					{
 						contributor.Notifications |= Notifications.NewTier;
-						contributor.Notifications ^= Notifications.TierUpdate;
+						contributor.Notifications &= ~Notifications.TierUpdate;
 						updates |= ContributorUpdates.Notifications;
 					}
 
