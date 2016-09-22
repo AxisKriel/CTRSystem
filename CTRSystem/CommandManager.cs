@@ -115,25 +115,15 @@ namespace CTRSystem
 					case LMReturnCode.Success:
 						// Store the contributor object to finish the authentication process
 						Contributor contributor = response.Contributor;
-						bool success = await _main.XenforoUsers.SetTShockID(contributor.XenforoId.Value, args.Player.User.ID);
-						#region DEBUG
-#if DEBUG
-						TShock.Log.ConsoleInfo($"CTRS-AUTH: Set TShockID for Contributor {contributor.UserID.Value}? {success}");
-#endif
-						#endregion
-						if (success)
-						{
-							// Start listening to events
-							contributor.Listen(_main, args.Player);
 
-							// Store the contributor object
-							args.Player.SetData(Contributor.DataKey, contributor);
-							args.Player.SendSuccessMessage($"{Tag} You are now authenticated for the forum account '{username}'.");
+						// Start listening to events
+						contributor.Listen(_main, args.Player);
 
-							await contributor.UpdateNotifications();
-						}
-						else
-							goto case LMReturnCode.DatabaseError;
+						// Store the contributor object
+						args.Player.SetData(Contributor.DataKey, contributor);
+						args.Player.SendSuccessMessage($"{Tag} You are now authenticated for the forum account '{username}'.");
+
+						await contributor.UpdateNotifications();
 						break;
 					case LMReturnCode.EmptyParameter:
 					case LMReturnCode.InsuficientParameters:
@@ -247,16 +237,16 @@ namespace CTRSystem
 					// Keep it null
 				}
 
-				XFUser xfuser;
-				if (!con.XenforoId.HasValue || (xfuser = await _main.XenforoUsers.GetAsync(args.Player.User.ID)) == null)
+				if (!con.XenforoId.HasValue)
 				{
 					args.Player.SendInfoMessage($"{Tag} Oops! It seems you're yet to authenticate to a valid forum account.");
 					args.Player.SendInfoMessage($"{Tag} Use the {spe}auth <username> <password> command to authenticate first.");
 					return;
 				}
 
+				float credits = await _main.XenforoUsers.GetContributorCredits(con);
 				args.Player.SendMessage($"{Tag} Contributions Track & Reward System v{_main.Version}", Color.LightGreen);
-				foreach (string s in Texts.SplitIntoLines(_main.Formatter.FormatInfo(args.Player, con, xfuser.Credits, tier, nextTier)))
+				foreach (string s in Texts.SplitIntoLines(_main.Formatter.FormatInfo(args.Player, con, credits, tier, nextTier)))
 				{
 					args.Player.SendInfoMessage($"{Tag} {s}");
 				}

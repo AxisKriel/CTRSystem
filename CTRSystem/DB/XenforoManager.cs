@@ -9,22 +9,8 @@ namespace CTRSystem.DB
 {
 	public class XenforoManager : DbManager
 	{
-		private object syncLock = new object();
-
 		public XenforoManager(CTRS main) : base(main)
 		{
-			// Make sure the tshock_id column exists
-			try
-			{
-				using (var db = OpenConnection())
-				{
-					db.Execute("ALTER TABLE xf_user ADD tshock_id INT UNIQUE");
-				}
-			}
-			catch (MySqlException)
-			{
-				// A duplicate column error is thrown if it already exists. Disregard.
-			}
 		}
 
 		/// <inheritdoc/>
@@ -42,30 +28,19 @@ namespace CTRSystem.DB
 			};
 		}
 
-		public Task<XFUser> GetAsync(int tshockID)
+		/// <summary>
+		/// Fetches a <see cref="XFUser"/> object from the database.
+		/// </summary>
+		/// <param name="userID">The Xenforo user ID.</param>
+		/// <returns>A xenforo user object containing essential data.</returns>
+		public Task<XFUser> GetAsync(int userID)
 		{
 			return Task.Run(() =>
 			{
-				string query = "SELECT user_id, username, adcredit FROM xf_user WHERE tshock_id = @TShockID";
+				string query = "SELECT user_id, username, adcredit FROM xf_user WHERE user_id = @Id";
 				using (var db = OpenConnection())
 				{
-					return db.Query<XFUser>(query, new { TShockID = tshockID }).SingleOrDefault();
-				}
-			});
-		}
-
-		public async Task<bool> SetTShockID(int userID, int tshockID)
-		{
-			// Only remember the first authenticated account
-			if (await GetAsync(tshockID) != null)
-				return true;
-
-			return await Task.Run(() =>
-			{
-				string query = "UPDATE xf_user SET tshock_id = @TShockID WHERE user_id = @UserID";
-				using (var db = OpenConnection())
-				{
-					return (db.Execute(query, new { UserID = userID, TShockID = tshockID }) == 1);
+					return db.Query<XFUser>(query, new { Id = userID }).SingleOrDefault();
 				}
 			});
 		}
@@ -73,11 +48,10 @@ namespace CTRSystem.DB
 		public async Task<float> GetContributorCredits(Contributor contributor)
 		{
 			// Only works if the contributor has linked their Xenforo account to their TShock account
-			if (!contributor.XenforoId.HasValue || contributor.Accounts.Count == 0)
+			if (!contributor.XenforoId.HasValue)
 				return 0f;
 
-			// Note: Currently, Xenforo will only store the first account to successfully authenticate
-			XFUser user = await GetAsync(contributor.Accounts[0]);
+			XFUser user = await GetAsync(contributor.XenforoId.Value);
 			return user.Credits;
 		}
 	}

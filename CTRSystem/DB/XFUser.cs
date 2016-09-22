@@ -8,7 +8,6 @@
 		public int user_id;
 		public string username;
 		public float adcredit;
-		public int tshock_id;
 
 		public int UserID
 		{
@@ -23,11 +22,6 @@
 		public float Credits
 		{
 			get { return adcredit; }
-		}
-
-		public int TShockID
-		{
-			get { return tshock_id; }
 		}
 	}
 }
