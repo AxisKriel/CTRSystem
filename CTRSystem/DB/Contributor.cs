@@ -110,6 +110,11 @@ namespace CTRSystem.DB
 		public Notifications Notifications { get; set; }
 
 		public Settings Settings { get; set; }
+		
+		/// <summary>
+		/// Whether or not the contributor object currently has a listener.
+		/// </summary>
+		public bool IsListening => _receiver != null;
 
 		/// <summary>
 		/// Initializes a new instance of the <see cref="Contributor"/> class with the given
@@ -132,7 +137,7 @@ namespace CTRSystem.DB
 			Accounts.Add(user.ID);
 		}
 
-		private async Task onTransaction(object sender, TransactionEventArgs e)
+		private void onTransaction(object sender, TransactionEventArgs e)
 		{
 			if (e.ContributorId == Id)
 			{
@@ -153,22 +158,26 @@ namespace CTRSystem.DB
 
 				// Check for tier upgrades
 				int oldTier = Tier;
-				await _scope.Tiers.UpgradeTier(this, true);
-				if (Tier != oldTier)
+				Task.Run(async () =>
 				{
-					// Delay the message according to the config
-					await Task.Delay(_scope.Config.NotificationCheckSeconds * 1000);
-
-					foreach (string s in Texts.SplitIntoLines(
-						_scope.Formatter.FormatNewTier(_receiver, this, _scope.Tiers.Get(Tier))))
+					Notifications |= Notifications.TierUpdate;
+					await _scope.Tiers.UpgradeTier(this);
+					if (Tier != oldTier)
 					{
-						_receiver.SendInfoMessage(s);
+						// Delay the message according to the config
+						await Task.Delay(_scope.Config.NotificationCheckSeconds * 1000);
+
+						foreach (string s in Texts.SplitIntoLines(
+							_scope.Formatter.FormatNewTier(_receiver, this, _scope.Tiers.Get(Tier))))
+						{
+							_receiver.SendInfoMessage(s);
+						}
 					}
-				}
+				});
 			}
 		}
 
-		private async Task onUpdate(object sender, ContributorUpdateEventArgs e)
+		private async void onUpdate(object sender, ContributorUpdateEventArgs e)
 		{
 			if (e.ContributorId == Id)
 			{
@@ -228,6 +237,8 @@ namespace CTRSystem.DB
 				_scope.Rests.ContributorUpdate -= onUpdate;
 				_scope.Rests.Transaction -= onTransaction;
 			}
+			
+			_receiver = null;
 		}
 
 		/// <summary>

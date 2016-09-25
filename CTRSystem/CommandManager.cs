@@ -198,7 +198,7 @@ namespace CTRSystem
 					else
 					{
 						target.Notifications |= Notifications.TierUpdate;
-						await _main.Tiers.UpgradeTier(target, player != null);
+						await _main.Tiers.UpgradeTier(target);
 						args.Player.SendSuccessMessage($"Forced a tier upgrade on contributor '{user.Name}'.");
 					}
 				}

@@ -261,27 +261,20 @@ namespace CTRSystem.DB
 		/// Upgrades a contributor's tier based on their total credit balance.
 		/// </summary>
 		/// <param name="contributor">A reference to the contributor object to upgrade.</param>
-		/// <param name="suppressNotifications">Whether or not notification updates should be suppressed.</param>
 		/// <returns>A task for this action.</returns>
-		public async Task UpgradeTier(Contributor contributor, bool suppressNotifications = false)
+		public async Task UpgradeTier(Contributor contributor)
 		{
-			if (suppressNotifications
-				|| (contributor.Notifications & Notifications.TierUpdate) == Notifications.TierUpdate)
+			if ((contributor.Notifications & Notifications.TierUpdate) == Notifications.TierUpdate)
 			{
-				ContributorUpdates updates = 0;
+				ContributorUpdates updates = ContributorUpdates.Notifications;
+				contributor.Notifications &= ~Notifications.TierUpdate;
+
 				Tier tier = await GetByCreditsAsync(contributor.TotalCredits);
 				if (contributor.Tier != tier.ID)
 				{
 					contributor.Tier = tier.ID;
 
-					// Don't touch notifications on suppress
-					if (!suppressNotifications)
-					{
-						contributor.Notifications |= Notifications.NewTier;
-						contributor.Notifications &= ~Notifications.TierUpdate;
-						updates |= ContributorUpdates.Notifications;
-					}
-
+					contributor.Notifications |= Notifications.NewTier;
 					updates |= ContributorUpdates.Tier;
 				}
 

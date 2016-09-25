@@ -18,12 +18,12 @@ namespace CTRSystem
 		/// Occurs after a contributor has been updated.
 		/// Contributor objects should hook to this event to properly follow changes.
 		/// </summary>
-		public AsyncEvent<ContributorUpdateEventArgs> ContributorUpdate;
+		public event EventHandler<ContributorUpdateEventArgs> ContributorUpdate;
 
 		/// <summary>
 		/// Occurs after a contributor receives a new transaction.
 		/// </summary>
-		public AsyncEvent<TransactionEventArgs> Transaction;
+		public event EventHandler<TransactionEventArgs> Transaction;
 
 		/// <summary>
 		/// Initializes a new instance of the <see cref="RestManager"/> class.
@@ -54,64 +54,70 @@ namespace CTRSystem
 		[Obsolete("Use RestNewTransactionV2 instead.")]
 		object restNewTransaction(RestRequestArgs args)
 		{
-			var ret = UserFind(args.Parameters);
-			if (ret is RestObject)
-				return ret;
+			return RestError("This endpoint has been deprecated.");
 
-			User user = (User)ret;
-			if (String.IsNullOrWhiteSpace(args.Parameters["credits"]))
-				return RestMissingParam("credits");
+			#region Code
 
-			float credits;
-			if (!Single.TryParse(args.Parameters["credits"], out credits))
-				return RestInvalidParam("credits");
+			//var ret = UserFind(args.Parameters);
+			//if (ret is RestObject)
+			//	return ret;
 
-			long dateUnix = 0;
-			if (!String.IsNullOrWhiteSpace(args.Parameters["date"]))
-				Int64.TryParse(args.Parameters["date"], out dateUnix);
+			//User user = (User)ret;
+			//if (String.IsNullOrWhiteSpace(args.Parameters["credits"]))
+			//	return RestMissingParam("credits");
 
-			Contributor con = _main.Contributors.Get(user.ID);
-			bool success = false;
-			if (con == null)
-			{
-				// Transactions must never be ignored. If the contributor doesn't exist, create it
-				con = new Contributor(user);
-				con.LastAmount = credits;
-				if (dateUnix > 0)
-					con.LastDonation = dateUnix.FromUnixTime();
-				con.Tier = 1;
-				con.TotalCredits = credits;
-				success = _main.Contributors.AddLocal(con);
-				if (!success)
-					TShock.Log.ConsoleInfo($"CTRS-WARNING: Failed to register contribution made by user '{user.Name}'!");
-			}
-			else
-			{
-				ContributorUpdates updates = 0;
+			//float credits;
+			//if (!Single.TryParse(args.Parameters["credits"], out credits))
+			//	return RestInvalidParam("credits");
 
-				con.LastAmount = credits;
-				updates |= ContributorUpdates.LastAmount;
+			//long dateUnix = 0;
+			//if (!String.IsNullOrWhiteSpace(args.Parameters["date"]))
+			//	Int64.TryParse(args.Parameters["date"], out dateUnix);
 
-				if (dateUnix > 0)
-				{
-					con.LastDonation = dateUnix.FromUnixTime();
-					updates |= ContributorUpdates.LastDonation;
-				}
+			//Contributor con = _main.Contributors.Get(user.ID);
+			//bool success = false;
+			//if (con == null)
+			//{
+			//	// Transactions must never be ignored. If the contributor doesn't exist, create it
+			//	con = new Contributor(user);
+			//	con.LastAmount = credits;
+			//	if (dateUnix > 0)
+			//		con.LastDonation = dateUnix.FromUnixTime();
+			//	con.Tier = 1;
+			//	con.TotalCredits = credits;
+			//	success = _main.Contributors.AddLocal(con);
+			//	if (!success)
+			//		TShock.Log.ConsoleInfo($"CTRS-WARNING: Failed to register contribution made by user '{user.Name}'!");
+			//}
+			//else
+			//{
+			//	ContributorUpdates updates = 0;
 
-				con.TotalCredits += credits;
-				updates |= ContributorUpdates.TotalCredits;
+			//	con.LastAmount = credits;
+			//	updates |= ContributorUpdates.LastAmount;
 
-				con.Notifications |= Notifications.NewDonation;
-				// Always prompt a tier update check here
-				con.Notifications |= Notifications.TierUpdate;
-				updates |= ContributorUpdates.Notifications;
+			//	if (dateUnix > 0)
+			//	{
+			//		con.LastDonation = dateUnix.FromUnixTime();
+			//		updates |= ContributorUpdates.LastDonation;
+			//	}
 
-				success = _main.Contributors.Update(con, updates);
-			}
-			if (!success)
-				return RestError("Transaction was not registered properly.");
-			else
-				return RestResponse("Transaction successful.");
+			//	con.TotalCredits += credits;
+			//	updates |= ContributorUpdates.TotalCredits;
+
+			//	con.Notifications |= Notifications.NewDonation;
+			//	// Always prompt a tier update check here
+			//	con.Notifications |= Notifications.TierUpdate;
+			//	updates |= ContributorUpdates.Notifications;
+
+			//	success = _main.Contributors.Update(con, updates);
+			//}
+			//if (!success)
+			//	return RestError("Transaction was not registered properly.");
+			//else
+			//	return RestResponse("Transaction successful.");
+
+			#endregion
 		}
 
 		/// <summary>
@@ -123,7 +129,7 @@ namespace CTRSystem
 		[Noun("credits", true, "The amount of credits to transfer.", typeof(Int32))]
 		[Noun("date", true, "The date on which the original transaction was performed, as a Int64 unix timestamp.", typeof(Int64))]
 		[Token]
-		async Task<object> restNewTransactionV2(RestRequestArgs args)
+		object restNewTransactionV2(RestRequestArgs args)
 		{
 			int userID;
 
@@ -154,6 +160,7 @@ namespace CTRSystem
 					con.LastDonation = dateUnix.FromUnixTime();
 				con.Tier = 1;
 				con.TotalCredits = credits;
+				con.Notifications |= Notifications.TierUpdate;
 
 				success = _main.Contributors.Add(con);
 				if (!success)
@@ -162,7 +169,7 @@ namespace CTRSystem
 				}
 
 				// Fire the Transaction event (must be done after Add to include the contributor Id)
-				await Transaction?.InvokeAsync(_main.Contributors, new TransactionEventArgs(con.Id, credits, dateUnix.FromUnixTime()));
+				Transaction?.Invoke(_main.Contributors, new TransactionEventArgs(con.Id, credits, dateUnix.FromUnixTime()));
 			}
 			else
 			{
@@ -182,7 +189,7 @@ namespace CTRSystem
 
 				// Fire the Transaction event
 				var transactionArgs = new TransactionEventArgs(con.Id, credits, dateUnix.FromUnixTime());
-				await Transaction?.InvokeAsync(_main.Contributors, transactionArgs);
+				Transaction?.Invoke(_main.Contributors, transactionArgs);
 
 				// Suppress notifications if needed
 				if (!transactionArgs.SuppressNotifications)
@@ -215,12 +222,12 @@ namespace CTRSystem
 		[Verb("user_id", "The database ID of the Xenforo user account.", typeof(Int32))]
 		[Noun("updates", true, "A list of updates to be run.", typeof(ContributorUpdates))]
 		[Token]
-		async Task<object> restUpdateContributorV2(RestRequestArgs args)
+		object restUpdateContributorV2(RestRequestArgs args)
 		{
 			int xenforoId;
 
 			if (!Int32.TryParse(args.Verbs["user_id"], out xenforoId))
-				return RestInvalidParam("contributor_id");
+				return RestInvalidParam("user_id");
 
 			if (String.IsNullOrWhiteSpace(args.Parameters["updates"]))
 				return RestMissingParam("updates");
@@ -230,11 +237,11 @@ namespace CTRSystem
 			if (!Enum.TryParse(args.Parameters["updates"], out updates))
 				return RestInvalidParam("updates");
 
-			Contributor con = await _main.Contributors.GetByXenforoIdAsync(xenforoId);
+			Contributor con = _main.Contributors.GetByXenforoId(xenforoId);
 			if (con != null)
 			{
 				// Fire the Contributor Update event and let any listener pick it up
-				await ContributorUpdate?.InvokeAsync(this, new ContributorUpdateEventArgs(con, updates));
+				ContributorUpdate?.Invoke(this, new ContributorUpdateEventArgs(con, updates));
 			}
 
 			// Possible improvement: send different response if something was certainly updated?

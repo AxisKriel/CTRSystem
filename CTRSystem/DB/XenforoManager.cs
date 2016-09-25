@@ -40,7 +40,7 @@ namespace CTRSystem.DB
 				string query = "SELECT user_id, username, adcredit FROM xf_user WHERE user_id = @Id";
 				using (var db = OpenConnection())
 				{
-					return db.Query<XFUser>(query, new { Id = userID }).SingleOrDefault();
+					return db.QuerySingleOrDefault<XFUser>(query, new { Id = userID });
 				}
 			});
 		}
