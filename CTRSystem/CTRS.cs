@@ -16,10 +16,11 @@ using TShockAPI;
 using TShockAPI.Hooks;
 using Wolfje.Plugins.SEconomy;
 using Wolfje.Plugins.SEconomy.Journal;
+using Microsoft.Xna.Framework;
 
 namespace CTRSystem
 {
-	[ApiVersion(1, 23)]
+	[ApiVersion(2, 0)]
 	public class CTRS : TerrariaPlugin
 	{
 		private Timer _tierUpdateTimer;

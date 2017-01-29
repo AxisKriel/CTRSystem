@@ -5,6 +5,7 @@ using CTRSystem.Configuration;
 using TShockAPI;
 using TShockAPI.DB;
 using CTRSystem.Extensions;
+using Microsoft.Xna.Framework;
 
 namespace CTRSystem.DB
 {

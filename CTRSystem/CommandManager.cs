@@ -10,6 +10,7 @@ using HttpServer;
 using Rests;
 using TShockAPI;
 using TShockAPI.DB;
+using Microsoft.Xna.Framework;
 
 namespace CTRSystem
 {

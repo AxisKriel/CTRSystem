@@ -3,6 +3,7 @@ using System.IO;
 using CTRSystem.DB;
 using Newtonsoft.Json;
 using TShockAPI;
+using Microsoft.Xna.Framework;
 
 namespace CTRSystem.Configuration
 {
