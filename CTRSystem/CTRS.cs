@@ -20,7 +20,7 @@ using Microsoft.Xna.Framework;
 
 namespace CTRSystem
 {
-	[ApiVersion(2, 0)]
+	[ApiVersion(2, 1)]
 	public class CTRS : TerrariaPlugin
 	{
 		private Timer _tierUpdateTimer;
